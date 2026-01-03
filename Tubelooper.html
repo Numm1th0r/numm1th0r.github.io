@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YT Looper & Manager</title>
+    <title>YT Looper Pro - Set A/B</title>
     <style>
         :root {
             --bg-dark: #121212;
@@ -12,10 +12,8 @@
             --text-main: #ffffff;
             --text-sub: #b3b3b3;
             --accent: #1db954; /* Spotify zöld */
-            --accent-hover: #1ed760;
+            --loop-color: #ff4081; 
             --timeline-bg: #535353;
-            /* A loop sáv maradt pinkes, hogy jól látszódjon a zöldön, de a gomb zöld lesz */
-            --loop-region-color: #ff4081; 
         }
 
         body {
@@ -25,30 +23,30 @@
             color: var(--text-main);
             height: 100vh;
             display: grid;
-            grid-template-rows: 1fr 150px; /* Tartalom (változó) és Lejátszó sáv (fix) */
-            overflow: hidden; /* Megakadályozza, hogy az egész oldal görgessen */
+            grid-template-rows: 1fr 160px; /* Megnövelt alsó sáv */
+            overflow: hidden;
         }
 
         /* --- Fő elrendezés --- */
         .main-container {
             display: grid;
             grid-template-columns: 250px 1fr;
-            overflow: hidden; /* Csak a belső részek görögjenek */
+            overflow: hidden;
             height: 100%;
         }
 
-        /* --- Oldalsáv (Csoportok) --- */
+        /* --- Oldalsáv --- */
         .sidebar {
             background-color: black;
             padding: 20px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 10px;
             border-right: 1px solid #333;
             overflow-y: auto;
         }
 
-        .sidebar h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: var(--text-sub); margin-bottom: 10px; }
+        .sidebar h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: var(--text-sub); margin-bottom: 5px; }
         
         .group-item {
             padding: 10px;
@@ -59,173 +57,152 @@
             font-size: 14px;
             font-weight: 500;
         }
-        .group-item:hover { color: white; }
-        .group-item.active { background-color: var(--bg-light); color: white; }
+        .group-item:hover { color: white; background: #222; }
+        .group-item.active { background-color: var(--bg-light); color: white; border-left: 3px solid var(--accent); }
         
-        .add-btn {
-            background: transparent; border: 1px solid var(--text-sub); color: var(--text-main);
-            padding: 8px; cursor: pointer; border-radius: 20px; margin-top: auto;
-            transition: 0.2s;
+        .sidebar-btn {
+            background: transparent; border: 1px solid #444; color: var(--text-sub);
+            padding: 8px; cursor: pointer; border-radius: 4px; margin-top: 5px; font-size: 12px;
+            transition: 0.2s; text-align: center;
         }
-        .add-btn:hover { border-color: white; transform: scale(1.05); }
+        .sidebar-btn:hover { border-color: white; color: white; }
+        .sidebar-btn.primary { background: var(--text-main); color: black; border: none; font-weight: bold; }
+        .sidebar-btn.primary:hover { background: #ddd; }
 
-        /* --- Tartalom terület (Közép) --- */
+        /* File Input elrejtése */
+        #file-input { display: none; }
+
+        /* --- Tartalom --- */
         .content-area {
             background: linear-gradient(to bottom, #2a2a2a, #121212);
             padding: 30px;
-            overflow-y: auto; /* Itt görgetünk, ha hosszú a lista */
+            overflow-y: auto;
             display: flex;
             flex-direction: column;
         }
 
-        /* VIDEÓ TÁROLÓ - Most már látható */
         .video-container {
             width: 100%;
-            max-width: 800px;
+            max-width: 700px;
             aspect-ratio: 16 / 9;
             background: #000;
-            margin: 0 auto 30px auto;
+            margin: 0 auto 20px auto;
             border-radius: 8px;
             overflow: hidden;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            display: none; /* Alapból rejtett, amíg nincs play */
+            display: none; 
         }
         
-        .video-container iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
+        .video-container iframe { width: 100%; height: 100%; border: none; }
 
-        .header-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header-controls { margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;}
         
-        .import-area textarea {
-            width: 100%; height: 50px; background: var(--bg-light); border: none; color: white; padding: 10px;
-            margin-bottom: 10px; resize: none; border-radius: 4px; font-family: inherit;
-            box-sizing: border-box; /* Hogy ne lógjon ki a padding miatt */
+        .import-area { display: flex; gap: 10px; margin-bottom: 20px; }
+        .import-area input {
+            flex: 1; background: var(--bg-light); border: 1px solid #444; color: white; padding: 10px;
+            border-radius: 4px;
         }
-
-        /* Táblázat */
+        
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        th { text-align: left; color: var(--text-sub); border-bottom: 1px solid #333; padding: 10px; font-weight: normal; text-transform: uppercase; font-size: 12px;}
+        th { text-align: left; color: var(--text-sub); border-bottom: 1px solid #333; padding: 10px; font-weight: normal; font-size: 12px;}
         td { padding: 12px 10px; border-bottom: 1px solid #222; }
-        tr:hover { background-color: rgba(255,255,255,0.1); }
+        tr:hover { background-color: rgba(255,255,255,0.05); }
         
-        .play-row-btn {
-            background: transparent; border: 1px solid rgba(255,255,255,0.2); 
-            color: white; cursor: pointer; font-size: 12px; padding: 5px 10px; border-radius: 15px;
-            transition: 0.2s;
+        .action-btn {
+            background: transparent; border: 1px solid #555; color: white; 
+            cursor: pointer; font-size: 11px; padding: 4px 8px; border-radius: 4px;
         }
-        .play-row-btn:hover { border-color: white; transform: scale(1.05); }
+        .action-btn:hover { border-color: white; }
+        .btn-delete { border-color: #555; color: #ff5555; }
+        .btn-delete:hover { border-color: #ff5555; background: rgba(255, 85, 85, 0.1); }
 
-        /* --- Lejátszó sáv (Alsó rész) --- */
+        /* --- Lejátszó Sáv (ÚJ DESIGN) --- */
         .player-bar {
             background-color: var(--bg-panel);
             border-top: 1px solid #333;
             padding: 0 20px;
             display: grid;
-            grid-template-columns: 1fr 2fr 1fr; /* Bal - Közép - Jobb */
+            grid-template-columns: 1fr 2fr 1fr;
             align-items: center;
-            height: 150px;
             z-index: 10;
         }
 
-        /* Bal oldal: Videó infó */
-        .video-info { font-size: 14px; min-width: 0; /* Flexbox fix */ padding-right: 20px;}
-        .video-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; color: white;}
-        .video-time { color: var(--text-sub); font-size: 12px; }
+        .video-info { overflow: hidden; white-space: nowrap; }
+        .video-title { display: block; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; color: white; font-weight: bold;}
+        .video-time { color: var(--accent); font-family: monospace; font-size: 14px; }
 
-        /* Közép: Timeline és Gombok */
+        /* Középső rész: Timeline + AB Gombok */
         .player-center {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            width: 100%;
+            gap: 10px;
         }
 
-        /* Timeline Slider */
-        .timeline-wrapper {
-            width: 100%;
-            padding: 0 10px;
-            box-sizing: border-box;
-            margin-bottom: 15px;
-        }
-
+        /* Timeline (csak vizuális) */
         .timeline-container {
             width: 100%;
             height: 6px;
             position: relative;
             background: var(--timeline-bg);
             border-radius: 3px;
-            cursor: pointer;
-            user-select: none;
+            cursor: pointer; /* Lehessen kattintani a kereséshez */
         }
 
-        /* Színes sávok */
         .loop-region {
-            position: absolute; height: 100%; background: var(--loop-region-color);
-            opacity: 0.5; border-radius: 3px; pointer-events: none;
+            position: absolute; height: 100%; background: var(--loop-color);
+            opacity: 0.6; border-radius: 3px; pointer-events: none;
+            transition: all 0.2s;
         }
-
         .play-progress {
             position: absolute; height: 100%; background: white;
             border-radius: 3px; pointer-events: none; width: 0%;
+            box-shadow: 0 0 5px rgba(255,255,255,0.5);
         }
 
-        /* Fogantyúk (Handles) */
-        .handle {
-            width: 16px; height: 16px; background: white; border-radius: 50%;
-            position: absolute; top: 50%; transform: translate(-50%, -50%); 
-            cursor: col-resize; z-index: 10;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-            transition: transform 0.1s;
-        }
-        .handle:hover { transform: translate(-50%, -50%) scale(1.2); }
-
-        .time-label {
-            position: absolute; top: -25px; font-size: 11px; color: var(--text-sub); 
-            transform: translateX(-50%); background: #222; padding: 2px 5px; border-radius: 3px;
+        /* AB Vezérlők */
+        .ab-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: #222;
+            padding: 8px 20px;
+            border-radius: 30px;
+            border: 1px solid #333;
         }
 
-        /* Vezérlő Gombok */
-        .controls { display: flex; gap: 20px; align-items: center; justify-content: center; }
+        .ab-btn {
+            background: #333; border: 1px solid #555; color: #ccc;
+            padding: 5px 12px; border-radius: 4px; cursor: pointer;
+            font-size: 12px; font-family: monospace; display: flex; flex-direction: column; align-items: center;
+            min-width: 60px;
+        }
+        .ab-btn span { font-size: 10px; color: #888; margin-top: 2px;}
+        .ab-btn:hover { background: #444; color: white; border-color: #888; }
+        .ab-btn:active { transform: scale(0.95); }
         
-        .btn-control {
-            background: transparent; border: none; color: #b3b3b3; font-size: 18px; cursor: pointer;
-            transition: 0.2s;
-        }
-        .btn-control:hover { color: white; }
+        .ab-btn.set { border-color: var(--loop-color); color: var(--loop-color); background: rgba(255, 64, 129, 0.1); }
+        .ab-btn.set span { color: var(--loop-color); }
 
+        .main-controls { display: flex; gap: 15px; align-items: center; }
         .btn-circle {
-            width: 40px; height: 40px; border-radius: 50%;
+            width: 35px; height: 35px; border-radius: 50%; border: none;
             display: flex; align-items: center; justify-content: center;
-            font-size: 20px; transition: 0.2s; cursor: pointer; border: none;
+            font-size: 16px; cursor: pointer; background: white; color: black;
+            transition: transform 0.2s;
         }
+        .btn-circle:hover { transform: scale(1.1); }
         
-        .btn-play { background: white; color: black; font-size: 18px; }
-        .btn-play:hover { transform: scale(1.05); }
+        .btn-clear {
+            background: transparent; border: none; color: #666; font-size: 18px; cursor: pointer;
+        }
+        .btn-clear:hover { color: #ff5555; }
 
-        /* LOOP GOMB - ITT A VÁLTOZÁS: ZÖLD */
-        .btn-loop {
-            background: transparent; 
-            color: var(--text-sub);
-            position: relative;
-        }
-        .btn-loop:hover { color: white; }
-        
-        /* Aktív Loop állapot */
-        .btn-loop.active { 
-            color: var(--accent); /* Zöld ikon */
-        }
-        .btn-loop.active::after {
-            content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
-            width: 4px; height: 4px; background: var(--accent); border-radius: 50%;
-        }
-
-        /* Jobb oldal: Sebesség */
-        .player-right { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
-        .speed-display { font-size: 14px; width: 40px; text-align: center; color: var(--text-sub); }
+        /* Sebesség */
+        .player-right { display: flex; justify-content: flex-end; align-items: center; gap: 5px; }
+        .speed-btn { background: transparent; border: none; color: #aaa; cursor: pointer; font-size: 18px; }
+        .speed-val { font-family: monospace; width: 40px; text-align: center; font-size: 14px; }
 
     </style>
 </head>
@@ -233,10 +210,19 @@
 
     <div class="main-container">
         <div class="sidebar">
-            <h2>Könyvtár</h2>
-            <div id="group-list">
+            <h2 style="font-size:16px; color:white; margin-bottom: 20px;">My Loops</h2>
+            
+            <button class="sidebar-btn primary" onclick="createNewGroup()">+ Új Csoport</button>
+            
+            <div style="flex-grow: 1; overflow-y: auto; margin-top:10px;" id="group-list">
                 </div>
-            <button class="add-btn" onclick="createNewGroup()">+ Új Csoport</button>
+
+            <div style="border-top: 1px solid #333; padding-top: 10px; margin-top: 10px;">
+                <h2>Adatbázis</h2>
+                <button class="sidebar-btn" style="width:100%" onclick="saveToFile()">💾 Mentés Fájlba (TXT)</button>
+                <button class="sidebar-btn" style="width:100%" onclick="document.getElementById('file-input').click()">📂 Betöltés Fájlból</button>
+                <input type="file" id="file-input" accept=".txt,.json" onchange="loadFromFile(this)">
+            </div>
         </div>
 
         <div class="content-area">
@@ -246,27 +232,23 @@
             </div>
 
             <div class="header-controls">
-                <h1 id="current-group-title" style="margin:0; font-size: 24px;">Minden Videó</h1>
+                <h1 id="current-group-title" style="margin:0; font-size: 22px;">Könyvtár</h1>
             </div>
 
-            <div style="background: #333; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                <h3 style="margin-top:0; font-size:14px; color: var(--text-sub);">Gyors hozzáadás (Youtube linkek)</h3>
-                <div class="import-area">
-                    <textarea id="import-text" placeholder="Illessz be ide YouTube linkeket..."></textarea>
-                    <button onclick="importVideos()" style="background:var(--accent); border:none; padding:8px 16px; color:black; border-radius:20px; cursor:pointer; font-weight:bold; font-size:13px;">Hozzáadás</button>
-                </div>
+            <div class="import-area">
+                <input type="text" id="import-url" placeholder="YouTube Link beillesztése..." onkeydown="if(event.key==='Enter') addVideo()">
+                <button class="sidebar-btn primary" onclick="addVideo()">Hozzáad</button>
             </div>
 
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 40px;">#</th>
-                        <th>Cím</th>
-                        <th style="width: 120px; text-align:right;">Művelet</th>
+                        <th style="width: 30px;">#</th>
+                        <th>Videó Címe</th>
+                        <th style="width: 140px; text-align:right;">Kezelés</th>
                     </tr>
                 </thead>
-                <tbody id="video-list-body">
-                    </tbody>
+                <tbody id="video-list-body"></tbody>
             </table>
         </div>
     </div>
@@ -274,67 +256,75 @@
     <div class="player-bar">
         
         <div class="video-info">
-            <strong class="video-title" id="now-playing-title">Nincs videó kiválasztva</strong>
-            <span class="video-time" id="now-playing-time">--:-- / --:--</span>
+            <div class="video-title" id="now-playing-title">Nincs videó</div>
+            <div class="video-time" id="time-display">00:00 / 00:00</div>
         </div>
 
         <div class="player-center">
             
-            <div class="timeline-wrapper">
-                <div class="timeline-container" id="timeline">
-                    <div class="loop-region" id="loop-region" style="left: 0%; width: 100%;"></div>
-                    
-                    <div class="play-progress" id="play-progress"></div>
+            <div class="timeline-container" id="timeline" onclick="seekClick(event)">
+                <div class="loop-region" id="loop-region" style="left: 0%; width: 0%; display:none;"></div>
+                <div class="play-progress" id="play-progress"></div>
+            </div>
 
-                    <div class="handle" id="handle-start" style="left: 0%;"></div>
-                    <div class="handle" id="handle-end" style="left: 100%;"></div>
+            <div class="ab-controls">
+                <button class="ab-btn" id="btn-a" onclick="setA()">
+                    SET A
+                    <span id="label-a">--:--</span>
+                </button>
 
-                    <div class="time-label" id="label-start" style="left: 0%;">Start</div>
-                    <div class="time-label" id="label-end" style="left: 100%;">Vége</div>
+                <button class="ab-btn" id="btn-b" onclick="setB()">
+                    SET B
+                    <span id="label-b">--:--</span>
+                </button>
+
+                <button class="btn-clear" onclick="clearLoop()" title="Loop Törlése">✕</button>
+
+                <div style="width: 1px; height: 20px; background: #444; margin: 0 10px;"></div>
+
+                <div class="main-controls">
+                    <button class="speed-btn" onclick="skip(-5)">↺</button>
+                    <button class="btn-circle" onclick="togglePlay()">
+                        <span id="play-icon">▶</span>
+                    </button>
+                    <button class="speed-btn" onclick="skip(5)">↻</button>
                 </div>
             </div>
-
-            <div class="controls">
-                <button class="btn-control" onclick="skip(-5)" title="-5 mp">↺ 5s</button>
-                
-                <button class="btn-control btn-loop active" id="loop-toggle-btn" onclick="toggleLoopMode()" title="Loop Be/Ki">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M17 2.1l4 4-4 4"></path>
-                        <path d="M3 12.2v-2a4 4 0 0 1 4-4h12.8M7 21.9l-4-4 4-4"></path>
-                        <path d="M21 11.8v2a4 4 0 0 1-4 4H4.2"></path>
-                    </svg>
-                </button>
-
-                <button class="btn-circle btn-play" onclick="togglePlay()">
-                    <span id="play-icon">▶</span>
-                </button>
-
-                <button class="btn-control" onclick="skip(5)" title="+5 mp">5s ↻</button>
+            
+            <div style="font-size: 11px; color: #666; margin-top: 5px;">
+                <label><input type="checkbox" id="chk-loop" checked> Automatikus Loop</label>
             </div>
+
         </div>
 
         <div class="player-right">
-            <button class="btn-control" onclick="changeSpeed(-0.25)" style="font-size:20px;">-</button>
-            <span class="speed-display" id="speed-val">1.0x</span>
-            <button class="btn-control" onclick="changeSpeed(0.25)" style="font-size:20px;">+</button>
+            <button class="speed-btn" onclick="changeSpeed(-0.1)">-</button>
+            <span class="speed-val" id="speed-val">1.0</span>
+            <button class="speed-btn" onclick="changeSpeed(0.1)">+</button>
         </div>
     </div>
 
     <script>
         // --- Adatstruktúra ---
         let groups = [
-            { id: 1, name: 'Kedvencek', videos: [] },
-            { id: 2, name: 'Gitár Gyakorlás', videos: [] }
+            { id: 1, name: 'Kedvencek', videos: [] }
         ];
         let currentGroupId = 1;
-        let player; 
         
-        // --- Állapotváltozók ---
-        let currentVideoDuration = 0;
-        let isLooping = true;
-        let loopStart = 0; 
-        let loopEnd = 100;
-        let isDragging = null; // 'start', 'end', vagy null
+        // --- Player Állapot ---
+        let player; 
+        let duration = 0;
+        let loopStart = null;
+        let loopEnd = null;
+        let isLoopActive = false;
+        let updateInterval;
+
+        // --- Inicializálás ---
+        window.onload = function() {
+            loadFromLocalStorage(); // Adatok betöltése böngészőből
+            renderGroups();
+            renderVideos();
+        };
 
         // --- YouTube API ---
         var tag = document.createElement('script');
@@ -344,66 +334,154 @@
 
         function onYouTubeIframeAPIReady() {
             player = new YT.Player('player', {
-                height: '100%',
-                width: '100%',
-                videoId: '',
-                playerVars: { 'playsinline': 1, 'controls': 1, 'rel': 0 },
-                events: {
-                    'onReady': onPlayerReady,
-                    'onStateChange': onPlayerStateChange
-                }
+                height: '100%', width: '100%', videoId: '',
+                playerVars: { 'playsinline': 1, 'controls': 0, 'rel': 0 }, // controls: 0 = saját UI-t használunk
+                events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange }
             });
         }
 
         function onPlayerReady(event) {
-            setInterval(loopCheck, 100);
+            updateInterval = setInterval(loopLogic, 100);
         }
 
         function onPlayerStateChange(event) {
             if (event.data == YT.PlayerState.PLAYING) {
                 document.getElementById('play-icon').innerHTML = "❚❚";
-                // Videó láthatóvá tétele lejátszáskor
                 document.getElementById('video-wrapper').style.display = "block";
-                
-                // Időtartam frissítés
-                let dur = player.getDuration();
-                if(dur > 0 && dur !== currentVideoDuration) {
-                    currentVideoDuration = dur;
-                    if(loopEnd === 100 || loopEnd === 0) loopEnd = dur; 
-                    updateTimelineVisuals();
-                }
+                duration = player.getDuration();
             } else {
                 document.getElementById('play-icon').innerHTML = "▶";
             }
         }
 
-        // --- Loop Logic ---
-        function loopCheck() {
+        // --- Fő Logika: LOOP & UI ---
+        function loopLogic() {
             if (!player || !player.getCurrentTime) return;
-
-            const currentTime = player.getCurrentTime();
-            const duration = player.getDuration();
             
-            // Ha a videó hossza megváltozott (pl új videó)
-            if(duration > 0 && Math.abs(currentVideoDuration - duration) > 1) {
-                currentVideoDuration = duration;
-                if(loopEnd > duration || loopEnd === 0) loopEnd = duration;
+            const ct = player.getCurrentTime();
+            
+            // UI Frissítés (Idő és Progress bar)
+            if(duration > 0) {
+                document.getElementById('time-display').innerText = formatTime(ct) + " / " + formatTime(duration);
+                document.getElementById('play-progress').style.width = ((ct / duration) * 100) + "%";
             }
 
-            if(duration > 0) {
-                // UI Frissítés
-                const percent = (currentTime / duration) * 100;
-                document.getElementById('play-progress').style.width = percent + '%';
-                document.getElementById('now-playing-time').innerText = 
-                    formatTime(currentTime) + " / " + formatTime(duration);
-
-                // Loop mechanizmus
-                if (isLooping) {
-                    // Ha túlmegy a végén VAGY a kezdés előtt van (pl visszatekeréskor)
-                    if (currentTime >= loopEnd || (currentTime < loopStart && Math.abs(currentTime - loopStart) > 1)) {
-                        player.seekTo(loopStart);
-                    }
+            // Loop Mechanizmus
+            const autoLoop = document.getElementById('chk-loop').checked;
+            
+            // Csak akkor loopolunk, ha be van állítva A és B pont is
+            if (autoLoop && loopStart !== null && loopEnd !== null) {
+                if (ct >= loopEnd || (ct < loopStart && Math.abs(ct-loopStart) > 2)) {
+                    player.seekTo(loopStart);
                 }
+            }
+        }
+
+        // --- SET A / SET B Funkciók ---
+        function setA() {
+            if (!player) return;
+            loopStart = player.getCurrentTime();
+            updateLoopVisuals();
+        }
+
+        function setB() {
+            if (!player) return;
+            loopEnd = player.getCurrentTime();
+            // Ha B kisebb mint A, akkor cseréljük meg vagy jelezzünk hibát? Most feltételezzük, hogy a felhasználó sorban nyomja.
+            if (loopStart !== null && loopEnd < loopStart) {
+                 // Ha véletlenül előrébb nyomta a B-t, legyen az A a 0.
+                 loopStart = 0; 
+            }
+            updateLoopVisuals();
+        }
+
+        function clearLoop() {
+            loopStart = null;
+            loopEnd = null;
+            updateLoopVisuals();
+        }
+
+        function updateLoopVisuals() {
+            const region = document.getElementById('loop-region');
+            const btnA = document.getElementById('btn-a');
+            const btnB = document.getElementById('btn-b');
+            const lblA = document.getElementById('label-a');
+            const lblB = document.getElementById('label-b');
+
+            // Gombok állapota
+            if (loopStart !== null) {
+                btnA.classList.add('set');
+                lblA.innerText = formatTime(loopStart);
+            } else {
+                btnA.classList.remove('set');
+                lblA.innerText = "--:--";
+            }
+
+            if (loopEnd !== null) {
+                btnB.classList.add('set');
+                lblB.innerText = formatTime(loopEnd);
+            } else {
+                btnB.classList.remove('set');
+                lblB.innerText = "--:--";
+            }
+
+            // Timeline Sáv rajzolása
+            if (loopStart !== null && loopEnd !== null && duration > 0) {
+                region.style.display = "block";
+                const startP = (loopStart / duration) * 100;
+                const endP = (loopEnd / duration) * 100;
+                region.style.left = startP + "%";
+                region.style.width = (endP - startP) + "%";
+            } else {
+                region.style.display = "none";
+            }
+        }
+
+        // --- Videó Kezelés ---
+        function playVideo(id, title) {
+            player.loadVideoById(id);
+            document.getElementById('now-playing-title').innerText = title;
+            clearLoop(); // Új videónál töröljük a loopot
+        }
+
+        function seekClick(e) {
+            if (!player || duration === 0) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percent = x / rect.width;
+            player.seekTo(percent * duration);
+        }
+
+        // --- Csoport & Videó Adatkezelés ---
+        function addVideo() {
+            const url = document.getElementById('import-url').value;
+            const id = extractVideoID(url);
+            if(id) {
+                const group = groups.find(g => g.id === currentGroupId);
+                group.videos.push({ id: id, title: `Videó (${id})` });
+                document.getElementById('import-url').value = '';
+                saveToLocalStorage();
+                renderVideos();
+            } else {
+                alert("Hibás YouTube link!");
+            }
+        }
+
+        function deleteVideo(idx) {
+            if(confirm("Törlöd a videót?")) {
+                const group = groups.find(g => g.id === currentGroupId);
+                group.videos.splice(idx, 1);
+                saveToLocalStorage();
+                renderVideos();
+            }
+        }
+
+        function createNewGroup() {
+            const name = prompt("Csoport neve:");
+            if(name) {
+                groups.push({ id: Date.now(), name: name, videos: [] });
+                saveToLocalStorage();
+                renderGroups();
             }
         }
 
@@ -426,213 +504,104 @@
             const tbody = document.getElementById('video-list-body');
             tbody.innerHTML = '';
             const group = groups.find(g => g.id === currentGroupId);
-            if (!group) return;
+            if(!group) return;
 
-            if(group.videos.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#555; padding:20px;">Nincsenek videók. Adj hozzá fent!</td></tr>';
-                return;
-            }
-
-            group.videos.forEach((vid, index) => {
+            group.videos.forEach((vid, idx) => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td style="color:var(--text-sub);">${index + 1}</td>
-                    <td style="color:white; font-weight:500;">${vid.title}</td>
+                    <td style="color:#666">${idx+1}</td>
+                    <td>${vid.title}</td>
                     <td style="text-align:right;">
-                        <button class="play-row-btn" onclick="playVideo('${vid.id}', '${vid.title}')">Lejátszás</button>
-                        <button class="play-row-btn" style="border-color:#ff4081; color:#ff4081; margin-left:5px;" onclick="deleteVideo(${index})">✕</button>
+                        <button class="action-btn" onclick="playVideo('${vid.id}', '${vid.title}')">Lejátszás</button>
+                        <button class="action-btn btn-delete" onclick="deleteVideo(${idx})">Törlés</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
         }
 
-        // --- Műveletek ---
-        function createNewGroup() {
-            const name = prompt("Mi legyen a csoport neve?");
-            if (name) {
-                groups.push({ id: Date.now(), name: name, videos: [] });
-                renderGroups();
+        // --- FÁJL MENTÉS ÉS BETÖLTÉS (Save/Load) ---
+        
+        function saveToLocalStorage() {
+            localStorage.setItem('yt_looper_data', JSON.stringify(groups));
+        }
+
+        function loadFromLocalStorage() {
+            const data = localStorage.getItem('yt_looper_data');
+            if(data) {
+                try { groups = JSON.parse(data); } catch(e) { console.error("Hiba a betöltéskor"); }
             }
         }
 
-        function importVideos() {
-            const text = document.getElementById('import-text').value;
-            if(!text.trim()) return;
-            const lines = text.split('\n');
-            const group = groups.find(g => g.id === currentGroupId);
+        // TXT / JSON Fájlba mentés
+        function saveToFile() {
+            const dataStr = JSON.stringify(groups, null, 2); // Szép formátum
+            const blob = new Blob([dataStr], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
             
-            lines.forEach(line => {
-                const id = extractVideoID(line);
-                if (id) {
-                    // Egyszerűsítés: a cím csak az ID, hacsak nem töltjük be API-val
-                    group.videos.push({ id: id, title: `Video ${id.substring(0,5)}...`, start: 0, end: 0 });
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "youtube_csoportok.txt"; // A kérésnek megfelelően txt
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Fájlból betöltés
+        function loadFromFile(input) {
+            const file = input.files[0];
+            if(!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const content = e.target.result;
+                    groups = JSON.parse(content);
+                    saveToLocalStorage(); // Mentés egyből a böngészőbe is
+                    renderGroups();
+                    renderVideos();
+                    alert("Sikeres betöltés!");
+                } catch(err) {
+                    alert("Hiba a fájl olvasásakor! Biztos jó fájlt választottál?");
                 }
-            });
-            
-            document.getElementById('import-text').value = '';
-            renderVideos();
+            };
+            reader.readAsText(file);
+            input.value = ''; // Reset input
         }
 
-        function deleteVideo(index) {
-            if(!confirm('Biztosan törlöd?')) return;
-            const group = groups.find(g => g.id === currentGroupId);
-            group.videos.splice(index, 1);
-            renderVideos();
-        }
-
+        // --- Segédfüggvények ---
         function extractVideoID(url) {
             var regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
             var match = url.match(regExp);
             return (match && match[2].length == 11) ? match[2] : null;
         }
 
-        // --- Lejátszó Control ---
-        function playVideo(id, title) {
-            player.loadVideoById(id);
-            document.getElementById('now-playing-title').innerText = title;
-            document.getElementById('video-wrapper').style.display = "block";
-            
-            // Reset sliders
-            loopStart = 0;
-            loopEnd = 10000; // Majd a metaadatok beállítják
-            updateTimelineVisuals();
-            
-            // Görgetés a tetejére mobilon, hogy látszódjon a videó
-            document.querySelector('.content-area').scrollTop = 0;
-        }
-
-        function togglePlay() {
-            const state = player.getPlayerState();
-            if (state == 1) player.pauseVideo();
-            else player.playVideo();
-        }
-
-        function toggleLoopMode() {
-            isLooping = !isLooping;
-            const btn = document.getElementById('loop-toggle-btn');
-            const region = document.getElementById('loop-region');
-            
-            if(isLooping) {
-                btn.classList.add('active');
-                region.style.opacity = '0.5';
-                region.style.background = 'var(--loop-region-color)';
-            } else {
-                btn.classList.remove('active');
-                region.style.opacity = '0.1';
-                region.style.background = '#fff';
-            }
+        function formatTime(s) {
+            if(isNaN(s)) return "00:00";
+            const m = Math.floor(s / 60);
+            const sec = Math.floor(s % 60);
+            return (m<10?"0"+m:m) + ":" + (sec<10?"0"+sec:sec);
         }
 
         function changeSpeed(delta) {
-            let rate = player.getPlaybackRate();
-            let newRate = Math.max(0.25, Math.min(2.0, rate + delta));
-            player.setPlaybackRate(newRate);
-            document.getElementById('speed-val').innerText = newRate + "x";
+            let r = player.getPlaybackRate();
+            let n = Math.max(0.25, Math.min(2.0, r + delta));
+            // Kerekítés 1 tizedesre a szép megjelenítéshez
+            n = Math.round(n * 100) / 100;
+            player.setPlaybackRate(n);
+            document.getElementById('speed-val').innerText = n;
         }
 
         function skip(sec) {
-            const curr = player.getCurrentTime();
-            player.seekTo(curr + sec);
+            player.seekTo(player.getCurrentTime() + sec);
         }
-
-        function formatTime(seconds) {
-            if(isNaN(seconds)) return "00:00";
-            const mins = Math.floor(seconds / 60);
-            const secs = Math.floor(seconds % 60);
-            return (mins < 10 ? "0" + mins : mins) + ":" + (secs < 10 ? "0" + secs : secs);
-        }
-
-        // --- DRAG & DROP Slider Logic ---
-        const timeline = document.getElementById('timeline');
         
-        timeline.addEventListener('mousedown', (e) => {
-            handleDrag(e.clientX);
-        });
-        
-        // Touch support (mobilra)
-        timeline.addEventListener('touchstart', (e) => {
-            handleDrag(e.touches[0].clientX);
-        });
-
-        function handleDrag(clientX) {
-            const rect = timeline.getBoundingClientRect();
-            const x = clientX - rect.left;
-            const percent = x / rect.width;
-            
-            const startPos = loopStart / currentVideoDuration;
-            const endPos = loopEnd / currentVideoDuration;
-            
-            const distStart = Math.abs(percent - startPos);
-            const distEnd = Math.abs(percent - endPos);
-
-            // Érzékenység növelése (melyikhez van közelebb)
-            if (distStart < 0.1 && distStart < distEnd) isDragging = 'start';
-            else if (distEnd < 0.1) isDragging = 'end';
-            else {
-                 // Ha simán a sávra kattint, ugorjon oda
-                 if(currentVideoDuration > 0) player.seekTo(percent * currentVideoDuration);
-            }
+        function togglePlay() {
+            const state = player.getPlayerState();
+            if(state === 1) player.pauseVideo(); else player.playVideo();
         }
 
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging || currentVideoDuration <= 0) return;
-            moveHandle(e.clientX);
-        });
-        
-        document.addEventListener('touchmove', (e) => {
-             if (!isDragging || currentVideoDuration <= 0) return;
-             moveHandle(e.touches[0].clientX);
-             e.preventDefault(); // Megakadályozza a görgetést húzás közben
-        });
-
-        function moveHandle(clientX) {
-            const rect = timeline.getBoundingClientRect();
-            let x = clientX - rect.left;
-            if(x < 0) x = 0;
-            if(x > rect.width) x = rect.width;
-            
-            const time = (x / rect.width) * currentVideoDuration;
-
-            if (isDragging === 'start') {
-                if (time < loopEnd - 1) loopStart = time; // Min 1 mp távolság
-            } else if (isDragging === 'end') {
-                if (time > loopStart + 1) loopEnd = time;
-            }
-            updateTimelineVisuals();
-        }
-
-        document.addEventListener('mouseup', endDrag);
-        document.addEventListener('touchend', endDrag);
-
-        function endDrag() {
-            if(isDragging === 'start') player.seekTo(loopStart);
-            isDragging = null;
-        }
-
-        function updateTimelineVisuals() {
-            if (currentVideoDuration <= 0) return;
-
-            const startP = (loopStart / currentVideoDuration) * 100;
-            const endP = (loopEnd / currentVideoDuration) * 100;
-
-            document.getElementById('handle-start').style.left = startP + '%';
-            document.getElementById('handle-end').style.left = endP + '%';
-            
-            const region = document.getElementById('loop-region');
-            region.style.left = startP + '%';
-            region.style.width = (endP - startP) + '%';
-
-            const lStart = document.getElementById('label-start');
-            lStart.style.left = startP + '%';
-            lStart.innerText = formatTime(loopStart);
-
-            const lEnd = document.getElementById('label-end');
-            lEnd.style.left = endP + '%';
-            lEnd.innerText = formatTime(loopEnd);
-        }
-
-        renderGroups();
     </script>
 </body>
 </html>
