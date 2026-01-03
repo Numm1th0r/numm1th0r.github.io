@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YT Looper Pro - Cloud Sync</title>
+    <title>YT Looper Pro - Bulk Import</title>
     <style>
         :root {
-            --bg-dark: #0d1117; /* Github sötét módhoz hasonló */
+            --bg-dark: #0d1117;
             --bg-panel: #161b22;
             --bg-light: #21262d;
             --text-main: #c9d1d9;
             --text-sub: #8b949e;
-            --accent: #238636; /* Github zöld */
+            --accent: #238636;
             --accent-hover: #2ea043;
             --loop-color: #f78166; 
             --timeline-bg: #30363d;
@@ -96,11 +96,13 @@
 
         .header-controls { margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px;}
         
-        .import-area { display: flex; gap: 10px; margin-bottom: 20px; }
-        .import-area input {
+        /* BULK IMPORT STÍLUS MÓDOSÍTÁS */
+        .import-area { display: flex; gap: 10px; margin-bottom: 20px; align-items: flex-start; }
+        .import-area textarea {
             flex: 1; background: var(--bg-dark); border: 1px solid var(--border); color: white; padding: 10px;
-            border-radius: 6px;
+            border-radius: 6px; resize: vertical; min-height: 38px; font-family: inherit;
         }
+        .import-area textarea:focus { border-color: var(--text-sub); outline: none; }
         
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th { text-align: left; color: var(--text-sub); border-bottom: 1px solid var(--border); padding: 10px; font-weight: normal; font-size: 12px;}
@@ -210,8 +212,8 @@
             </div>
 
             <div class="import-area">
-                <input type="text" id="import-url" placeholder="YouTube Link beillesztése..." onkeydown="if(event.key==='Enter') addVideo()">
-                <button class="sidebar-btn primary" style="width: auto; margin:0;" onclick="addVideo()">Hozzáad</button>
+                <textarea id="import-url" rows="1" placeholder="Illessz be egy vagy több YouTube linket (soronként)..."></textarea>
+                <button class="sidebar-btn primary" style="width: auto; margin:0; height: 42px;" onclick="addVideosBulk()">Hozzáad</button>
             </div>
 
             <table>
@@ -258,8 +260,7 @@
     </div>
 
     <script>
-        // --- KONFIGURÁCIÓ (KÉPRŐL OLVASVA) ---
-        // A repo neve a képed alapján:
+        // --- KONFIGURÁCIÓ ---
         const REPO_OWNER = "Numm1th0r";
         const REPO_NAME = "numm1th0r.github.io";
         const FILE_PATH = "saves.txt";
@@ -268,120 +269,121 @@
         let groups = [ { id: 1, name: 'Kezdő Lista', videos: [] } ];
         let currentGroupId = 1;
         let player, duration = 0, loopStart = null, loopEnd = null, updateInterval;
-        let ghToken = localStorage.getItem("yt_looper_gh_token"); // Token betöltése memóriából
+        let ghToken = localStorage.getItem("yt_looper_gh_token");
 
         window.onload = function() {
-            // Próbáljuk meg betölteni a helyi tárolóból, ha nincs, akkor alapértelmezett
             const localData = localStorage.getItem('yt_looper_data_v5');
-            if(localData) {
-                try { groups = JSON.parse(localData); } catch(e) {}
-            }
-            renderGroups();
-            renderVideos();
-            
-            // Ha van token, próbáljunk meg automatikusan szinkronizálni betöltéskor
-            if(ghToken) {
-                document.getElementById('sync-status').innerText = "GitHub Token aktív";
-            }
+            if(localData) { try { groups = JSON.parse(localData); } catch(e) {} }
+            renderGroups(); renderVideos();
+            if(ghToken) document.getElementById('sync-status').innerText = "GitHub Token aktív";
         };
 
-        // --- GITHUB SYNC LOGIKA ---
-        
+        // --- GITHUB SYNC ---
         function setupGitHub() {
-            const token = prompt("Kérlek másold be a GitHub Personal Access Token-edet:\n(Repo hozzáférés szükséges)");
+            const token = prompt("GitHub Token:");
             if(token) {
-                ghToken = token;
-                localStorage.setItem("yt_looper_gh_token", token);
-                alert("Token elmentve! Most már tudsz menteni és betölteni.");
+                ghToken = token; localStorage.setItem("yt_looper_gh_token", token);
                 document.getElementById('sync-status').innerText = "GitHub Token aktív";
+                alert("Token elmentve!");
             }
         }
 
         async function loadFromGitHub() {
             if(!ghToken) return setupGitHub();
-            setStatus("Betöltés GitHubról...");
-            
+            setStatus("Betöltés...");
             try {
-                // Hozzáadunk egy timestampet a végére, hogy ne cache-elje a böngésző
                 const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}?t=${Date.now()}`;
-                
-                const response = await fetch(url, {
-                    headers: { 'Authorization': `token ${ghToken}` }
-                });
-
-                if(!response.ok) throw new Error("Hiba a letöltéskor (404 vagy Jogosultság)");
-
+                const response = await fetch(url, { headers: { 'Authorization': `token ${ghToken}` } });
+                if(!response.ok) throw new Error("Hiba a letöltéskor");
                 const data = await response.json();
-                // A GitHub Base64 kódolva küldi a tartalmat. Dekódoljuk (UTF-8 támogatással)
                 const content = decodeURIComponent(escape(window.atob(data.content)));
-                
                 groups = JSON.parse(content);
-                saveToLocalStorage(); // Helyi mentés frissítése
-                renderGroups();
-                renderVideos();
-                setStatus("✅ Sikeres betöltés!");
-            } catch (err) {
-                console.error(err);
-                setStatus("❌ Hiba: " + err.message);
-                alert("Nem sikerült betölteni. Ellenőrizd a Tokent és hogy létezik-e a saves.txt!");
-            }
+                saveToLocalStorage(); renderGroups(); renderVideos();
+                setStatus("✅ Betöltve!");
+            } catch (err) { setStatus("❌ Hiba!"); alert("Betöltési hiba!"); }
         }
 
         async function saveToGitHub() {
             if(!ghToken) return setupGitHub();
-            setStatus("Mentés GitHubra...");
-
+            setStatus("Mentés...");
             try {
                 const apiUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`;
-                
-                // 1. Lépés: Le kell kérni a fájl SHA kódját (ez kell a felülíráshoz)
                 let sha = null;
                 try {
-                    const getRes = await fetch(apiUrl, {
-                        headers: { 'Authorization': `token ${ghToken}` }
-                    });
-                    if(getRes.ok) {
-                        const getData = await getRes.json();
-                        sha = getData.sha;
-                    }
-                } catch(e) { /* Ha nincs fájl, sebaj, majd létrehozza */ }
+                    const getRes = await fetch(apiUrl, { headers: { 'Authorization': `token ${ghToken}` } });
+                    if(getRes.ok) { const getData = await getRes.json(); sha = getData.sha; }
+                } catch(e) {}
 
-                // 2. Lépés: Adat előkészítése és kódolása Base64-be
                 const contentStr = JSON.stringify(groups, null, 2);
-                // Base64 encode UTF-8 safe workaround
                 const contentBase64 = window.btoa(unescape(encodeURIComponent(contentStr)));
-
-                // 3. Lépés: PUT kérés küldése
-                const body = {
-                    message: "Update saves.txt via TubeLooper",
-                    content: contentBase64,
-                };
+                const body = { message: "Update saves.txt", content: contentBase64 };
                 if(sha) body.sha = sha;
 
                 const putRes = await fetch(apiUrl, {
                     method: 'PUT',
-                    headers: {
-                        'Authorization': `token ${ghToken}`,
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Authorization': `token ${ghToken}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
                 });
-
                 if(!putRes.ok) throw new Error("Mentés sikertelen");
+                setStatus("✅ Mentve!");
+            } catch (err) { setStatus("❌ Mentési hiba!"); }
+        }
+        function setStatus(msg) { document.getElementById('sync-status').innerText = msg; }
 
-                setStatus("✅ Mentve GitHubra!");
-            } catch (err) {
-                console.error(err);
-                setStatus("❌ Mentési hiba!");
-                alert("Hiba történt a mentéskor. Ellenőrizd a Tokent!");
+        // --- BULK ADD LOGIC (ÚJ RÉSZ) ---
+        async function addVideosBulk() {
+            const input = document.getElementById('import-url');
+            const text = input.value;
+            if (!text.trim()) return;
+
+            // Sorokra bontás
+            const lines = text.split(/\r?\n/);
+            const group = groups.find(g => g.id === currentGroupId);
+            const videosToFetch = [];
+
+            // 1. Azonnali hozzáadás a listához (Placeholderrel)
+            for (const line of lines) {
+                const id = extractVideoID(line);
+                if (id) {
+                    const newVideo = { id: id, title: "Cím betöltése...", addedAt: Date.now() + Math.random() };
+                    group.videos.push(newVideo);
+                    videosToFetch.push({ videoObj: newVideo, url: line });
+                }
             }
+
+            input.value = '';
+            saveToLocalStorage();
+            renderVideos(); // Azonnal látja a felhasználó a listát
+
+            // 2. Címek lekérése aszinkron módon
+            for (const item of videosToFetch) {
+                const realTitle = await fetchVideoTitle(item.url);
+                if (realTitle) {
+                    item.videoObj.title = realTitle;
+                    // Frissítjük a nézetet minden sikeres lekérés után
+                    renderVideos(); 
+                    // Ha az épp játszott videó címe frissült
+                    const playingTitle = document.getElementById('now-playing-title');
+                    if (playingTitle.innerText === "Cím betöltése...") {
+                         // opció: frissíthetjük a lejátszó címét is, ha azonos az ID
+                    }
+                } else {
+                    item.videoObj.title = `Videó (${item.videoObj.id})`;
+                    renderVideos();
+                }
+            }
+            saveToLocalStorage(); // Végleges mentés címekkel
         }
 
-        function setStatus(msg) {
-            document.getElementById('sync-status').innerText = msg;
+        async function fetchVideoTitle(url) {
+            try {
+                const response = await fetch(`https://noembed.com/embed?url=${url}`);
+                const data = await response.json();
+                return data.title || null;
+            } catch (error) { return null; }
         }
 
-        // --- YouTube API és Egyéb Logika (Maradt a régi, jól bevált) ---
+        // --- PLAYER LOGIC ---
         var tag = document.createElement('script');
         tag.src = "https://www.youtube.com/iframe_api";
         var firstScriptTag = document.getElementsByTagName('script')[0];
@@ -394,7 +396,6 @@
                 events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange }
             });
         }
-
         function onPlayerReady(event) { updateInterval = setInterval(loopLogic, 100); }
         function onPlayerStateChange(event) {
             if (event.data == YT.PlayerState.PLAYING) {
@@ -404,7 +405,6 @@
                 tryUpdateCurrentVideoTitle();
             } else { document.getElementById('play-icon').innerHTML = "▶"; }
         }
-
         function loopLogic() {
             if (!player || !player.getCurrentTime) return;
             const ct = player.getCurrentTime();
@@ -416,15 +416,6 @@
                 if (ct >= loopEnd || (ct < loopStart && Math.abs(ct-loopStart) > 2)) player.seekTo(loopStart);
             }
         }
-
-        async function fetchVideoTitle(url) {
-            try {
-                const response = await fetch(`https://noembed.com/embed?url=${url}`);
-                const data = await response.json();
-                return data.title || null;
-            } catch (error) { return null; }
-        }
-
         function tryUpdateCurrentVideoTitle() {
             if(!player || !player.getVideoData) return;
             const data = player.getVideoData();
@@ -432,36 +423,16 @@
                 const group = groups.find(g => g.id === currentGroupId);
                 const vid = group.videos.find(v => v.id === data.video_id);
                 if(vid && (vid.title.includes('Videó (') || vid.title === 'Cím betöltése...')) {
-                    vid.title = data.title;
-                    saveToLocalStorage(); renderVideos();
+                    vid.title = data.title; saveToLocalStorage(); renderVideos();
                     document.getElementById('now-playing-title').innerText = data.title;
                 }
             }
         }
 
-        async function addVideo() {
-            const urlInput = document.getElementById('import-url');
-            const url = urlInput.value;
-            const id = extractVideoID(url);
-            if(id) {
-                const group = groups.find(g => g.id === currentGroupId);
-                const newVideo = { id: id, title: "Cím betöltése...", addedAt: Date.now() };
-                group.videos.push(newVideo);
-                urlInput.value = '';
-                renderVideos();
-                const realTitle = await fetchVideoTitle(url);
-                const vidToUpdate = group.videos.find(v => v.addedAt === newVideo.addedAt);
-                if(vidToUpdate) {
-                    vidToUpdate.title = realTitle ? realTitle : `Videó (${id})`;
-                    saveToLocalStorage(); renderVideos();
-                }
-            } else { alert("Hibás YouTube link!"); }
-        }
-
+        // --- CORE FUNCTIONS ---
         function setA() { if(!player) return; loopStart = player.getCurrentTime(); updateLoopVisuals(); }
         function setB() { if(!player) return; loopEnd = player.getCurrentTime(); if (loopStart !== null && loopEnd < loopStart) loopStart = 0; updateLoopVisuals(); }
         function clearLoop() { loopStart = null; loopEnd = null; updateLoopVisuals(); }
-
         function updateLoopVisuals() {
             const region = document.getElementById('loop-region');
             const btnA = document.getElementById('btn-a'); const lblA = document.getElementById('label-a');
@@ -472,16 +443,10 @@
                 region.style.display = "block"; region.style.left = (loopStart/duration)*100 + "%"; region.style.width = ((loopEnd-loopStart)/duration)*100 + "%";
             } else { region.style.display = "none"; }
         }
-
-        function playVideo(id, title) {
-            player.loadVideoById(id);
-            document.getElementById('now-playing-title').innerText = title;
-            clearLoop();
-        }
+        function playVideo(id, title) { player.loadVideoById(id); document.getElementById('now-playing-title').innerText = title; clearLoop(); }
         function seekClick(e) { if (!player || duration === 0) return; const rect = e.currentTarget.getBoundingClientRect(); player.seekTo(((e.clientX - rect.left) / rect.width) * duration); }
         function deleteVideo(idx) { if(confirm("Törlöd a videót?")) { groups.find(g => g.id === currentGroupId).videos.splice(idx, 1); saveToLocalStorage(); renderVideos(); } }
         function createNewGroup() { const name = prompt("Csoport neve:"); if(name) { groups.push({ id: Date.now(), name: name, videos: [] }); saveToLocalStorage(); renderGroups(); } }
-        
         function renderGroups() {
             const list = document.getElementById('group-list'); list.innerHTML = '';
             groups.forEach(g => {
@@ -499,7 +464,6 @@
                 tbody.appendChild(tr);
             });
         }
-
         function saveToLocalStorage() { localStorage.setItem('yt_looper_data_v5', JSON.stringify(groups)); }
         function extractVideoID(url) { var match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/); return (match && match[2].length == 11) ? match[2] : null; }
         function formatTime(s) { if(isNaN(s)) return "00:00"; const m = Math.floor(s/60), sec = Math.floor(s%60); return (m<10?"0"+m:m) + ":" + (sec<10?"0"+sec:sec); }
