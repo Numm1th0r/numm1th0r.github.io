@@ -3,233 +3,553 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoopTube Clone</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>YT Looper & Manager</title>
     <style>
-        body { background-color: #0f0f0f; color: #e5e5e5; }
-        .slider { -webkit-appearance: none; width: 100%; height: 6px; background: #333; outline: none; border-radius: 3px; }
-        .slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; background: #ff0000; cursor: pointer; border-radius: 50%; }
-        .video-item:hover { background-color: #272727; }
-        .scroll-custom::-webkit-scrollbar { width: 8px; }
-        .scroll-custom::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        :root {
+            --bg-dark: #121212;
+            --bg-panel: #181818;
+            --bg-light: #282828;
+            --text-main: #ffffff;
+            --text-sub: #b3b3b3;
+            --accent: #1db954; /* Spotify zöld */
+            --loop-color: #ff4081; /* A képen lévő pinkes szín */
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            display: grid;
+            grid-template-rows: 1fr 140px; /* Tartalom és Lejátszó sáv */
+            overflow: hidden;
+        }
+
+        /* --- Fő elrendezés --- */
+        .main-container {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            overflow: hidden;
+        }
+
+        /* --- Oldalsáv (Csoportok) --- */
+        .sidebar {
+            background-color: black;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            border-right: 1px solid #333;
+        }
+
+        .sidebar h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 2px; color: var(--text-sub); margin-bottom: 10px; }
+        
+        .group-item {
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            color: var(--text-sub);
+            transition: 0.2s;
+        }
+        .group-item:hover, .group-item.active { background-color: var(--bg-light); color: white; }
+        
+        .add-btn {
+            background: transparent; border: 1px solid var(--text-sub); color: var(--text-main);
+            padding: 8px; cursor: pointer; border-radius: 20px; margin-top: auto;
+        }
+
+        /* --- Lista nézet --- */
+        .content-area {
+            background: linear-gradient(to bottom, #303030, #121212);
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        .header-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        
+        .import-area textarea {
+            width: 100%; height: 60px; background: var(--bg-light); border: none; color: white; padding: 10px;
+            margin-bottom: 10px; resize: none; border-radius: 4px;
+        }
+
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th { text-align: left; color: var(--text-sub); border-bottom: 1px solid #333; padding: 10px; font-weight: normal;}
+        td { padding: 10px; border-bottom: 1px solid #222; }
+        tr:hover { background-color: rgba(255,255,255,0.1); }
+        
+        .play-row-btn {
+            background: transparent; border: none; color: white; cursor: pointer; font-size: 16px;
+        }
+        .play-row-btn:hover { color: var(--accent); }
+
+        /* --- Lejátszó sáv (Alsó rész - A KÉP ALAPJÁN) --- */
+        .player-bar {
+            background-color: var(--bg-panel);
+            border-top: 1px solid #333;
+            padding: 10px 20px;
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            align-items: center;
+            position: relative;
+        }
+
+        /* Bal oldal: Videó infó */
+        .video-info { font-size: 14px; }
+        .video-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
+
+        /* Közép: Kontrollok és Timeline */
+        .player-center {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        /* Az egyedi Loop Timeline */
+        .timeline-container {
+            width: 100%;
+            height: 40px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            user-select: none;
+        }
+
+        .track-bg {
+            position: absolute; width: 100%; height: 4px; background: #535353; border-radius: 2px;
+        }
+
+        /* A loopolt szakasz (Piros/Pink) */
+        .loop-region {
+            position: absolute; height: 4px; background: var(--loop-color);
+            left: 0%; width: 100%; /* JS fogja állítani */
+            z-index: 1;
+        }
+
+        /* Fehér négyzet fogantyúk */
+        .handle {
+            width: 14px; height: 14px; background: white; position: absolute; top: 50%;
+            transform: translate(-50%, -50%); cursor: col-resize; z-index: 3;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        /* Jelenlegi pozíció jelző (kis vonal) */
+        .playhead {
+            width: 2px; height: 12px; background: white; position: absolute; top: 50%;
+            transform: translate(-50%, -50%); z-index: 2; pointer-events: none;
+        }
+
+        /* Időcímkék a csúszka felett */
+        .time-label {
+            position: absolute; top: -20px; font-size: 12px; color: white; transform: translateX(-50%);
+        }
+
+        /* Gombok (Kör alakúak a kép alapján) */
+        .controls { display: flex; gap: 20px; align-items: center; }
+        
+        .btn-control {
+            background: transparent; border: none; color: #b3b3b3; font-size: 20px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .btn-control:hover { color: white; }
+
+        .btn-circle {
+            width: 40px; height: 40px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; transition: 0.2s;
+        }
+        
+        .btn-play { background: white; color: black; }
+        .btn-play:hover { transform: scale(1.05); }
+
+        .btn-loop {
+            background: linear-gradient(135deg, #ff4081, #d81b60); 
+            color: white; 
+        }
+        .btn-loop.inactive { background: #333; color: #777; }
+
+        /* Jobb oldal: Sebesség */
+        .player-right { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+        .speed-display { font-size: 14px; width: 40px; text-align: center; }
+
+        /* Rejtett YouTube iframe */
+        #yt-player-container { position: absolute; top: -9999px; visibility: hidden; }
+
     </style>
 </head>
-<body class="h-screen flex flex-col md:flex-row overflow-hidden">
+<body>
 
-    <div class="w-full md:w-1/4 bg-[#181818] flex flex-col border-r border-[#303030]">
-        <div class="p-4 border-b border-[#303030]">
-            <h1 class="text-xl font-bold text-red-500 mb-2">LoopTube Clone</h1>
-            <div class="flex gap-2 mb-4">
-                <input type="text" id="newGroupInput" placeholder="Új csoport..." class="w-full bg-[#0f0f0f] border border-[#303030] p-2 text-sm rounded text-white focus:outline-none focus:border-red-500">
-                <button onclick="createGroup()" class="bg-[#303030] hover:bg-[#404040] px-3 py-2 rounded text-white">+</button>
-            </div>
-            <button onclick="toggleBulkModal()" class="w-full bg-red-600 hover:bg-red-700 text-white text-sm py-2 rounded mb-2">+ Videók Hozzáadása</button>
-            <div class="text-xs text-gray-500 mt-2">
-                Tipp: Ha a videó nem indul el, valószínűleg le van tiltva a beágyazása (copyright).
-            </div>
-        </div>
-        <div id="groupsList" class="flex-1 overflow-y-auto scroll-custom p-2 space-y-2"></div>
-    </div>
-
-    <div class="w-full md:w-3/4 flex flex-col h-full relative">
-        <div class="flex-1 flex items-center justify-center bg-black relative" id="videoContainer">
-            <div id="player"></div>
-            <div id="placeholder" class="text-gray-500">Válassz egy videót a listából</div>
-        </div>
-
-        <div class="h-auto bg-[#181818] p-4 border-t border-[#303030]">
-            <div class="flex flex-wrap items-center justify-between gap-4 mb-4 bg-[#212121] p-3 rounded-lg">
-                <div class="flex items-center gap-4">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" id="loopToggle" class="w-5 h-5 accent-red-600">
-                        <span class="font-bold">LOOP AKTÍV</span>
-                    </label>
+    <div class="main-container">
+        <div class="sidebar">
+            <h2>Könyvtár</h2>
+            <div id="group-list">
                 </div>
-                <div class="flex items-center gap-2 flex-1">
-                    <button onclick="setLoopStart()" class="text-xs bg-[#303030] px-2 py-1 rounded">Kezdet (A)</button>
-                    <input type="number" id="loopStartInput" value="0" class="w-20 bg-black border border-[#303030] p-1 text-center rounded">
-                    <span class="text-gray-400">-</span>
-                    <input type="number" id="loopEndInput" value="0" class="w-20 bg-black border border-[#303030] p-1 text-center rounded">
-                    <button onclick="setLoopEnd()" class="text-xs bg-[#303030] px-2 py-1 rounded">Vége (B)</button>
+            <button class="add-btn" onclick="createNewGroup()">+ Új Csoport</button>
+        </div>
+
+        <div class="content-area">
+            <div class="header-controls">
+                <h1 id="current-group-title">Minden Videó</h1>
+            </div>
+
+            <div style="background: #333; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="margin-top:0; font-size:14px;">Videók hozzáadása (Youtube linkek)</h3>
+                <div class="import-area">
+                    <textarea id="import-text" placeholder="Illessz be ide YouTube linkeket (soronként egyet)..."></textarea>
+                    <button onclick="importVideos()" style="background:var(--accent); border:none; padding:8px 16px; color:white; border-radius:20px; cursor:pointer; font-weight:bold;">Hozzáadás</button>
                 </div>
             </div>
-            <div class="flex items-center gap-4">
-                <span class="text-sm text-gray-400">Sebesség: <span id="speedDisplay" class="text-white font-bold">1.0x</span></span>
-                <input type="range" min="0.25" max="2" step="0.05" value="1" id="speedSlider" class="slider w-64" oninput="changeSpeed(this.value)">
-                <button onclick="resetSpeed()" class="text-xs text-gray-400 underline">Reset</button>
-            </div>
-            <div class="mt-4 text-sm text-gray-400 flex justify-between">
-                <span id="currentVideoTitle">Nincs videó kiválasztva</span>
-                <button onclick="deleteCurrentVideo()" class="text-red-500 hover:text-red-400">Törlés</button>
-            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">#</th>
+                        <th>Cím</th>
+                        <th>ID</th>
+                        <th>Művelet</th>
+                    </tr>
+                </thead>
+                <tbody id="video-list-body">
+                    </tbody>
+            </table>
         </div>
     </div>
 
-    <div id="bulkModal" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-center justify-center z-50">
-        <div class="bg-[#212121] p-6 rounded-lg w-11/12 md:w-1/2 shadow-xl border border-[#303030]">
-            <h2 class="text-lg font-bold mb-4">Videók Hozzáadása</h2>
-            <textarea id="bulkInput" class="w-full h-40 bg-[#0f0f0f] border border-[#303030] p-2 text-sm rounded focus:outline-none mb-4 text-white" placeholder="https://youtube.com/watch?v=..."></textarea>
-            <select id="bulkGroupSelect" class="w-full bg-[#0f0f0f] border border-[#303030] p-2 mb-6 rounded text-white"></select>
-            <div class="flex justify-end gap-2">
-                <button onclick="toggleBulkModal()" class="px-4 py-2 bg-[#303030] rounded text-white">Mégse</button>
-                <button onclick="processBulkImport()" class="px-4 py-2 bg-red-600 rounded text-white hover:bg-red-700">Importálás</button>
+    <div class="player-bar">
+        <div class="video-info">
+            <strong class="video-title" id="now-playing-title">Nincs videó kiválasztva</strong>
+            <span id="now-playing-time">0:00 / 0:00</span>
+        </div>
+
+        <div class="player-center">
+            <div class="timeline-container" id="timeline">
+                <div class="track-bg"></div>
+                <div class="loop-region" id="loop-region" style="left: 0%; width: 100%;"></div>
+                <div class="handle" id="handle-start" style="left: 0%;"></div>
+                <div class="handle" id="handle-end" style="left: 100%;"></div>
+                <div class="playhead" id="playhead" style="left: 0%;"></div>
+                
+                <div class="time-label" id="label-start" style="left: 0%;">00:00</div>
+                <div class="time-label" id="label-end" style="left: 100%;">00:00</div>
             </div>
+
+            <div class="controls">
+                <button class="btn-control" onclick="skip(-5)">↺</button>
+                
+                <button class="btn-circle btn-loop" id="loop-toggle-btn" onclick="toggleLoopMode()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 1l4 4-4 4"></path>
+                        <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                        <path d="M7 23l-4-4 4-4"></path>
+                        <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                    </svg>
+                </button>
+
+                <button class="btn-circle btn-play" onclick="togglePlay()">
+                    <span id="play-icon">▶</span>
+                </button>
+
+                <button class="btn-control" onclick="skip(5)">↻</button>
+            </div>
+        </div>
+
+        <div class="player-right">
+            <button class="btn-control" onclick="changeSpeed(-0.25)">-</button>
+            <span class="speed-display" id="speed-val">1.0x</span>
+            <button class="btn-control" onclick="changeSpeed(0.25)">+</button>
         </div>
     </div>
 
-    <script src="https://www.youtube.com/iframe_api"></script>
+    <div id="yt-player-container">
+        <div id="player"></div>
+    </div>
+
     <script>
-        let player;
-        let loopInterval;
-        let appData = JSON.parse(localStorage.getItem('loopTubeData')) || { groups: [{ name: "Kedvencek", videos: [] }], activeGroupIndex: 0, activeVideoId: null };
-        let loopState = { active: false, start: 0, end: 0 };
+        // --- Adatstruktúra ---
+        let groups = [
+            { id: 1, name: 'Kedvencek', videos: [] },
+            { id: 2, name: 'Gitár Gyakorlás', videos: [] }
+        ];
+        let currentGroupId = 1;
+        let player; // YouTube Player objektum
+        let intervalId; // Loop ellenőrzéshez
+        
+        // --- Állapotváltozók ---
+        let currentVideoDuration = 0;
+        let isLooping = true;
+        let loopStart = 0; // másodpercben
+        let loopEnd = 100; // másodpercben
+        let isDragging = null; // 'start', 'end', vagy null
+
+        // --- YouTube API Betöltése ---
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
         function onYouTubeIframeAPIReady() {
             player = new YT.Player('player', {
-                height: '100%',
-                width: '100%',
+                height: '360',
+                width: '640',
                 videoId: '',
-                playerVars: { 
-                    'playsinline': 1, 
-                    'rel': 0, 
-                    'origin': window.location.origin, // Fontos az engedélyekhez
-                    'enablejsapi': 1 
-                },
                 events: {
                     'onReady': onPlayerReady,
-                    'onStateChange': onPlayerStateChange,
-                    'onError': onPlayerError // HIBAKEZELÉS HOZZÁADVA
+                    'onStateChange': onPlayerStateChange
                 }
             });
         }
 
         function onPlayerReady(event) {
-            // Itt állítjuk be a szigorú referrer policy-t, ahogy kérted
-            const iframe = event.target.getIframe();
-            if (iframe) iframe.referrerPolicy = "strict-origin-when-cross-origin";
-            renderGroups();
-            startLoopCheck();
-        }
-
-        function onPlayerError(event) {
-            let errorMsg = "";
-            if (event.data === 150 || event.data === 101) {
-                errorMsg = "HIBA: A videó tulajdonosa letiltotta a lejátszást külső oldalakon (vagy helyi fájlból futtatod). Próbálj meg egy másik videót, vagy futtasd az appot lokális szerveren.";
-            } else if (event.data === 2) {
-                errorMsg = "HIBA: Érvénytelen videó ID.";
-            } else {
-                errorMsg = "HIBA történt a lejátszás közben. Kód: " + event.data;
-            }
-            alert(errorMsg);
-            console.error("YouTube Error:", event.data);
+            updateTimeline();
+            setInterval(loopCheck, 100); // Rendszeresen ellenőrizzük a pozíciót
         }
 
         function onPlayerStateChange(event) {
-             if (event.data === YT.PlayerState.ENDED && loopState.active) {
-                player.seekTo(loopState.start);
+            if (event.data == YT.PlayerState.PLAYING) {
+                document.getElementById('play-icon').innerHTML = "❚❚";
+                currentVideoDuration = player.getDuration();
+                // Ha új videó, reseteljük a loop vége markert a végére
+                // (Itt most egyszerűsítésképpen nem reseteljük mindig, hogy megmaradjon a beállítás szerkesztésnél)
+            } else {
+                document.getElementById('play-icon').innerHTML = "▶";
+            }
+        }
+
+        // --- Loop Logika ---
+        function loopCheck() {
+            if (!player || !player.getCurrentTime) return;
+
+            const currentTime = player.getCurrentTime();
+            const duration = player.getDuration();
+            
+            if(duration > 0 && currentVideoDuration !== duration) {
+                currentVideoDuration = duration;
+                // Inicializáláskor a loop vége legyen a videó vége, ha még nincs beállítva
+                if(loopEnd === 100) loopEnd = duration; 
+            }
+
+            // UI Frissítése (Playhead)
+            if(duration > 0) {
+                const percent = (currentTime / duration) * 100;
+                document.getElementById('playhead').style.left = percent + '%';
+                
+                // Időkijelzés
+                document.getElementById('now-playing-time').innerText = 
+                    formatTime(currentTime) + " / " + formatTime(duration);
+            }
+
+            // Loop működése
+            if (isLooping && duration > 0) {
+                if (currentTime >= loopEnd || currentTime < loopStart - 1) {
+                    player.seekTo(loopStart);
+                }
+            }
+        }
+
+        // --- Felület kezelés (Renderelés) ---
+        function renderGroups() {
+            const list = document.getElementById('group-list');
+            list.innerHTML = '';
+            groups.forEach(g => {
+                const div = document.createElement('div');
+                div.className = `group-item ${g.id === currentGroupId ? 'active' : ''}`;
+                div.innerText = g.name;
+                div.onclick = () => { currentGroupId = g.id; renderGroups(); renderVideos(); };
+                list.appendChild(div);
+            });
+            const activeGroup = groups.find(g => g.id === currentGroupId);
+            document.getElementById('current-group-title').innerText = activeGroup ? activeGroup.name : 'Válassz csoportot';
+        }
+
+        function renderVideos() {
+            const tbody = document.getElementById('video-list-body');
+            tbody.innerHTML = '';
+            const group = groups.find(g => g.id === currentGroupId);
+            if (!group) return;
+
+            group.videos.forEach((vid, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${vid.title || 'Betöltés...'}</td>
+                    <td style="color:#666; font-family:monospace;">${vid.id}</td>
+                    <td>
+                        <button class="play-row-btn" onclick="playVideo('${vid.id}', '${vid.title}')">▶ Lejátszás</button>
+                        <button class="play-row-btn" style="color:#ff4081; font-size:12px; margin-left:10px;" onclick="deleteVideo(${index})">✕</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- Adatkezelés ---
+        function createNewGroup() {
+            const name = prompt("Mi legyen a csoport neve?");
+            if (name) {
+                groups.push({ id: Date.now(), name: name, videos: [] });
+                renderGroups();
+            }
+        }
+
+        function importVideos() {
+            const text = document.getElementById('import-text').value;
+            const lines = text.split('\n');
+            const group = groups.find(g => g.id === currentGroupId);
+            
+            lines.forEach(line => {
+                const id = extractVideoID(line);
+                if (id) {
+                    group.videos.push({ id: id, title: 'YouTube Videó (' + id + ')', start: 0, end: 0 });
+                }
+            });
+            
+            document.getElementById('import-text').value = '';
+            renderVideos();
+            // Opcionális: Címek lekérdezése YT API-n keresztül itt bonyolult lenne backend nélkül, 
+            // így most placeholdert használunk.
+        }
+
+        function deleteVideo(index) {
+            const group = groups.find(g => g.id === currentGroupId);
+            group.videos.splice(index, 1);
+            renderVideos();
+        }
+
+        function extractVideoID(url) {
+            var regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            var match = url.match(regExp);
+            if (match && match[2].length == 11) {
+                return match[2];
+            } else {
+                return null;
+            }
+        }
+
+        // --- Lejátszó Vezérlés ---
+        function playVideo(id, title) {
+            player.loadVideoById(id);
+            document.getElementById('now-playing-title').innerText = title;
+            // Alaphelyzetbe állítjuk a loop csúszkákat (teljes hosszra, majd frissül ha betölt)
+            loopStart = 0;
+            loopEnd = 10000; // Majd beáll a valódi hosszra
+            updateTimelineVisuals();
+        }
+
+        function togglePlay() {
+            if (player.getPlayerState() == YT.PlayerState.PLAYING) {
+                player.pauseVideo();
+            } else {
                 player.playVideo();
             }
         }
 
-        function startLoopCheck() {
-            clearInterval(loopInterval);
-            loopInterval = setInterval(() => {
-                if (!player || !player.getCurrentTime) return;
-                const currentTime = player.getCurrentTime();
-                const checkbox = document.getElementById('loopToggle');
-                const effectiveEnd = loopState.end > 0 ? loopState.end : player.getDuration();
-                if (checkbox.checked) {
-                    loopState.active = true;
-                    if (currentTime >= effectiveEnd || currentTime < loopState.start) {
-                        player.seekTo(loopState.start);
-                    }
-                } else {
-                    loopState.active = false;
-                }
-            }, 100);
+        function toggleLoopMode() {
+            isLooping = !isLooping;
+            const btn = document.getElementById('loop-toggle-btn');
+            if(isLooping) {
+                btn.classList.remove('inactive');
+                document.getElementById('loop-region').style.opacity = '1';
+            } else {
+                btn.classList.add('inactive');
+                document.getElementById('loop-region').style.opacity = '0.3';
+            }
         }
 
-        function setLoopStart() { if(player) { loopState.start = player.getCurrentTime(); document.getElementById('loopStartInput').value = loopState.start.toFixed(2); } }
-        function setLoopEnd() { if(player) { loopState.end = player.getCurrentTime(); document.getElementById('loopEndInput').value = loopState.end.toFixed(2); } }
-        function changeSpeed(val) { if(player) { player.setPlaybackRate(parseFloat(val)); document.getElementById('speedDisplay').innerText = val + 'x'; } }
-        function resetSpeed() { document.getElementById('speedSlider').value = 1; changeSpeed(1); }
+        function changeSpeed(delta) {
+            let rate = player.getPlaybackRate();
+            let newRate = Math.max(0.25, Math.min(2.0, rate + delta));
+            player.setPlaybackRate(newRate);
+            document.getElementById('speed-val').innerText = newRate + "x";
+        }
 
-        function saveData() { localStorage.setItem('loopTubeData', JSON.stringify(appData)); renderGroups(); }
+        function skip(sec) {
+            const curr = player.getCurrentTime();
+            player.seekTo(curr + sec);
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return (mins < 10 ? "0" + mins : mins) + ":" + (secs < 10 ? "0" + secs : secs);
+        }
+
+        // --- Timeline Slider Logika (DRAG & DROP) ---
+        const timeline = document.getElementById('timeline');
         
-        function createGroup() {
-            const name = document.getElementById('newGroupInput').value;
-            if (name.trim() === "") return;
-            appData.groups.push({ name: name, videos: [] });
-            document.getElementById('newGroupInput').value = "";
-            saveData();
-        }
+        timeline.addEventListener('mousedown', (e) => {
+            const rect = timeline.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const width = rect.width;
+            const percent = x / width;
+            
+            // Eldöntjük melyikhez van közelebb
+            const startPos = loopStart / currentVideoDuration;
+            const endPos = loopEnd / currentVideoDuration;
+            
+            const distStart = Math.abs(percent - startPos);
+            const distEnd = Math.abs(percent - endPos);
 
-        function deleteCurrentVideo() {
-            if(!appData.activeVideoId) return;
-            const group = appData.groups[appData.activeGroupIndex];
-            group.videos = group.videos.filter(v => v.id !== appData.activeVideoId);
-            appData.activeVideoId = null;
-            document.getElementById('videoContainer').innerHTML = '<div id="player"></div><div id="placeholder" class="text-gray-500">Videó törölve</div>';
-            onYouTubeIframeAPIReady(); 
-            saveData();
-        }
-
-        function renderGroups() {
-            const list = document.getElementById('groupsList');
-            const bulkSelect = document.getElementById('bulkGroupSelect');
-            list.innerHTML = "";
-            bulkSelect.innerHTML = "";
-            appData.groups.forEach((group, index) => {
-                const option = document.createElement('option'); option.value = index; option.innerText = group.name; bulkSelect.appendChild(option);
-                const groupDiv = document.createElement('div');
-                groupDiv.className = `p-2 rounded cursor-pointer ${index === appData.activeGroupIndex ? 'bg-[#212121] border border-[#303030]' : 'hover:bg-[#212121]'}`;
-                groupDiv.innerHTML = `<div onclick="setActiveGroup(${index})" class="font-bold text-sm mb-1 flex justify-between text-white"><span>${group.name}</span> <span class="text-gray-500 text-xs">${group.videos.length}</span></div>`;
-                if (index === appData.activeGroupIndex) {
-                    const videoList = document.createElement('div'); videoList.className = "pl-2 space-y-1";
-                    group.videos.forEach(video => {
-                        const vidItem = document.createElement('div');
-                        vidItem.className = `video-item text-xs p-1 rounded cursor-pointer truncate ${appData.activeVideoId === video.id ? 'text-red-500 font-bold' : 'text-gray-300'}`;
-                        vidItem.innerText = video.title;
-                        vidItem.onclick = () => loadVideo(video.id, video.title);
-                        videoList.appendChild(vidItem);
-                    });
-                    groupDiv.appendChild(videoList);
+            if (distStart < 0.05) isDragging = 'start';
+            else if (distEnd < 0.05) isDragging = 'end';
+            else {
+                // Ha csak a timeline-ra kattint, ugorjon oda a videó
+                if(currentVideoDuration > 0) {
+                    player.seekTo(percent * currentVideoDuration);
                 }
-                list.appendChild(groupDiv);
-            });
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging || currentVideoDuration <= 0) return;
+            
+            const rect = timeline.getBoundingClientRect();
+            let x = e.clientX - rect.left;
+            // Határok
+            if(x < 0) x = 0;
+            if(x > rect.width) x = rect.width;
+            
+            const time = (x / rect.width) * currentVideoDuration;
+
+            if (isDragging === 'start') {
+                if (time < loopEnd) loopStart = time;
+            } else if (isDragging === 'end') {
+                if (time > loopStart) loopEnd = time;
+            }
+            updateTimelineVisuals();
+        });
+
+        document.addEventListener('mouseup', () => {
+            if(isDragging) {
+                // Ha végeztünk a húzással, ugorjunk a loop elejére, ha 'start'-ot húztuk
+                if(isDragging === 'start') player.seekTo(loopStart);
+                isDragging = null;
+            }
+        });
+
+        function updateTimelineVisuals() {
+            if (currentVideoDuration <= 0) return;
+
+            const startP = (loopStart / currentVideoDuration) * 100;
+            const endP = (loopEnd / currentVideoDuration) * 100;
+
+            document.getElementById('handle-start').style.left = startP + '%';
+            document.getElementById('handle-end').style.left = endP + '%';
+            
+            const region = document.getElementById('loop-region');
+            region.style.left = startP + '%';
+            region.style.width = (endP - startP) + '%';
+
+            document.getElementById('label-start').style.left = startP + '%';
+            document.getElementById('label-start').innerText = formatTime(loopStart);
+
+            document.getElementById('label-end').style.left = endP + '%';
+            document.getElementById('label-end').innerText = formatTime(loopEnd);
         }
 
-        function setActiveGroup(index) { appData.activeGroupIndex = index; renderGroups(); }
-
-        function loadVideo(videoId, title) {
-            appData.activeVideoId = videoId;
-            document.getElementById('currentVideoTitle').innerText = title;
-            document.getElementById('placeholder').style.display = 'none';
-            player.loadVideoById(videoId);
-            renderGroups();
-        }
-
-        function extractVideoID(url) {
-            const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/);
-            return (match && match[2].length === 11) ? match[2] : null;
-        }
-
-        function toggleBulkModal() { document.getElementById('bulkModal').classList.toggle('hidden'); }
-
-        function processBulkImport() {
-            const text = document.getElementById('bulkInput').value;
-            const targetGroupIndex = document.getElementById('bulkGroupSelect').value;
-            const urls = text.split('\n');
-            let count = 0;
-            urls.forEach(url => {
-                const id = extractVideoID(url.trim());
-                if (id && !appData.groups[targetGroupIndex].videos.find(v => v.id === id)) {
-                    appData.groups[targetGroupIndex].videos.push({ id: id, title: `Video (${id})` });
-                    count++;
-                }
-            });
-            saveData(); toggleBulkModal(); document.getElementById('bulkInput').value = ""; alert(`${count} videó hozzáadva!`);
-        }
+        // Inicializálás
+        renderGroups();
     </script>
 </body>
 </html>
