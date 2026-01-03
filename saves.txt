@@ -1,18 +1,1 @@
-[
-  {
-    "id": 1,
-    "name": "Kezdő Lista",
-    "videos": [
-      {
-        "id": "SaeLKhRnkhQ",
-        "title": "Oasis - Cigarettes & Alcohol (Official HD Remastered Video)",
-        "addedAt": 1767481665068.897
-      }
-    ]
-  },
-  {
-    "id": 1767458456073,
-    "name": "WM setlist",
-    "videos": []
-  }
-]
+[{"id":1767483089902,"name":"WM SETLIST","videos":[]}]
