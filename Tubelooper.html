@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoopTube Clone</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f0f0f; color: #e5e5e5; }
+        .slider { -webkit-appearance: none; width: 100%; height: 6px; background: #333; outline: none; border-radius: 3px; }
+        .slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; background: #ff0000; cursor: pointer; border-radius: 50%; }
+        .video-item:hover { background-color: #272727; }
+        .scroll-custom::-webkit-scrollbar { width: 8px; }
+        .scroll-custom::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col md:flex-row overflow-hidden">
+
+    <div class="w-full md:w-1/4 bg-[#181818] flex flex-col border-r border-[#303030]">
+        <div class="p-4 border-b border-[#303030]">
+            <h1 class="text-xl font-bold text-red-500 mb-2">LoopTube Clone</h1>
+            <div class="flex gap-2 mb-4">
+                <input type="text" id="newGroupInput" placeholder="Új csoport..." class="w-full bg-[#0f0f0f] border border-[#303030] p-2 text-sm rounded text-white focus:outline-none focus:border-red-500">
+                <button onclick="createGroup()" class="bg-[#303030] hover:bg-[#404040] px-3 py-2 rounded text-white">+</button>
+            </div>
+            <button onclick="toggleBulkModal()" class="w-full bg-red-600 hover:bg-red-700 text-white text-sm py-2 rounded mb-2">+ Videók Hozzáadása</button>
+            <div class="text-xs text-gray-500 mt-2">
+                Tipp: Ha a videó nem indul el, valószínűleg le van tiltva a beágyazása (copyright).
+            </div>
+        </div>
+        <div id="groupsList" class="flex-1 overflow-y-auto scroll-custom p-2 space-y-2"></div>
+    </div>
+
+    <div class="w-full md:w-3/4 flex flex-col h-full relative">
+        <div class="flex-1 flex items-center justify-center bg-black relative" id="videoContainer">
+            <div id="player"></div>
+            <div id="placeholder" class="text-gray-500">Válassz egy videót a listából</div>
+        </div>
+
+        <div class="h-auto bg-[#181818] p-4 border-t border-[#303030]">
+            <div class="flex flex-wrap items-center justify-between gap-4 mb-4 bg-[#212121] p-3 rounded-lg">
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="loopToggle" class="w-5 h-5 accent-red-600">
+                        <span class="font-bold">LOOP AKTÍV</span>
+                    </label>
+                </div>
+                <div class="flex items-center gap-2 flex-1">
+                    <button onclick="setLoopStart()" class="text-xs bg-[#303030] px-2 py-1 rounded">Kezdet (A)</button>
+                    <input type="number" id="loopStartInput" value="0" class="w-20 bg-black border border-[#303030] p-1 text-center rounded">
+                    <span class="text-gray-400">-</span>
+                    <input type="number" id="loopEndInput" value="0" class="w-20 bg-black border border-[#303030] p-1 text-center rounded">
+                    <button onclick="setLoopEnd()" class="text-xs bg-[#303030] px-2 py-1 rounded">Vége (B)</button>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-sm text-gray-400">Sebesség: <span id="speedDisplay" class="text-white font-bold">1.0x</span></span>
+                <input type="range" min="0.25" max="2" step="0.05" value="1" id="speedSlider" class="slider w-64" oninput="changeSpeed(this.value)">
+                <button onclick="resetSpeed()" class="text-xs text-gray-400 underline">Reset</button>
+            </div>
+            <div class="mt-4 text-sm text-gray-400 flex justify-between">
+                <span id="currentVideoTitle">Nincs videó kiválasztva</span>
+                <button onclick="deleteCurrentVideo()" class="text-red-500 hover:text-red-400">Törlés</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="bulkModal" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-center justify-center z-50">
+        <div class="bg-[#212121] p-6 rounded-lg w-11/12 md:w-1/2 shadow-xl border border-[#303030]">
+            <h2 class="text-lg font-bold mb-4">Videók Hozzáadása</h2>
+            <textarea id="bulkInput" class="w-full h-40 bg-[#0f0f0f] border border-[#303030] p-2 text-sm rounded focus:outline-none mb-4 text-white" placeholder="https://youtube.com/watch?v=..."></textarea>
+            <select id="bulkGroupSelect" class="w-full bg-[#0f0f0f] border border-[#303030] p-2 mb-6 rounded text-white"></select>
+            <div class="flex justify-end gap-2">
+                <button onclick="toggleBulkModal()" class="px-4 py-2 bg-[#303030] rounded text-white">Mégse</button>
+                <button onclick="processBulkImport()" class="px-4 py-2 bg-red-600 rounded text-white hover:bg-red-700">Importálás</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        let player;
+        let loopInterval;
+        let appData = JSON.parse(localStorage.getItem('loopTubeData')) || { groups: [{ name: "Kedvencek", videos: [] }], activeGroupIndex: 0, activeVideoId: null };
+        let loopState = { active: false, start: 0, end: 0 };
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                videoId: '',
+                playerVars: { 
+                    'playsinline': 1, 
+                    'rel': 0, 
+                    'origin': window.location.origin, // Fontos az engedélyekhez
+                    'enablejsapi': 1 
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange,
+                    'onError': onPlayerError // HIBAKEZELÉS HOZZÁADVA
+                }
+            });
+        }
+
+        function onPlayerReady(event) {
+            // Itt állítjuk be a szigorú referrer policy-t, ahogy kérted
+            const iframe = event.target.getIframe();
+            if (iframe) iframe.referrerPolicy = "strict-origin-when-cross-origin";
+            renderGroups();
+            startLoopCheck();
+        }
+
+        function onPlayerError(event) {
+            let errorMsg = "";
+            if (event.data === 150 || event.data === 101) {
+                errorMsg = "HIBA: A videó tulajdonosa letiltotta a lejátszást külső oldalakon (vagy helyi fájlból futtatod). Próbálj meg egy másik videót, vagy futtasd az appot lokális szerveren.";
+            } else if (event.data === 2) {
+                errorMsg = "HIBA: Érvénytelen videó ID.";
+            } else {
+                errorMsg = "HIBA történt a lejátszás közben. Kód: " + event.data;
+            }
+            alert(errorMsg);
+            console.error("YouTube Error:", event.data);
+        }
+
+        function onPlayerStateChange(event) {
+             if (event.data === YT.PlayerState.ENDED && loopState.active) {
+                player.seekTo(loopState.start);
+                player.playVideo();
+            }
+        }
+
+        function startLoopCheck() {
+            clearInterval(loopInterval);
+            loopInterval = setInterval(() => {
+                if (!player || !player.getCurrentTime) return;
+                const currentTime = player.getCurrentTime();
+                const checkbox = document.getElementById('loopToggle');
+                const effectiveEnd = loopState.end > 0 ? loopState.end : player.getDuration();
+                if (checkbox.checked) {
+                    loopState.active = true;
+                    if (currentTime >= effectiveEnd || currentTime < loopState.start) {
+                        player.seekTo(loopState.start);
+                    }
+                } else {
+                    loopState.active = false;
+                }
+            }, 100);
+        }
+
+        function setLoopStart() { if(player) { loopState.start = player.getCurrentTime(); document.getElementById('loopStartInput').value = loopState.start.toFixed(2); } }
+        function setLoopEnd() { if(player) { loopState.end = player.getCurrentTime(); document.getElementById('loopEndInput').value = loopState.end.toFixed(2); } }
+        function changeSpeed(val) { if(player) { player.setPlaybackRate(parseFloat(val)); document.getElementById('speedDisplay').innerText = val + 'x'; } }
+        function resetSpeed() { document.getElementById('speedSlider').value = 1; changeSpeed(1); }
+
+        function saveData() { localStorage.setItem('loopTubeData', JSON.stringify(appData)); renderGroups(); }
+        
+        function createGroup() {
+            const name = document.getElementById('newGroupInput').value;
+            if (name.trim() === "") return;
+            appData.groups.push({ name: name, videos: [] });
+            document.getElementById('newGroupInput').value = "";
+            saveData();
+        }
+
+        function deleteCurrentVideo() {
+            if(!appData.activeVideoId) return;
+            const group = appData.groups[appData.activeGroupIndex];
+            group.videos = group.videos.filter(v => v.id !== appData.activeVideoId);
+            appData.activeVideoId = null;
+            document.getElementById('videoContainer').innerHTML = '<div id="player"></div><div id="placeholder" class="text-gray-500">Videó törölve</div>';
+            onYouTubeIframeAPIReady(); 
+            saveData();
+        }
+
+        function renderGroups() {
+            const list = document.getElementById('groupsList');
+            const bulkSelect = document.getElementById('bulkGroupSelect');
+            list.innerHTML = "";
+            bulkSelect.innerHTML = "";
+            appData.groups.forEach((group, index) => {
+                const option = document.createElement('option'); option.value = index; option.innerText = group.name; bulkSelect.appendChild(option);
+                const groupDiv = document.createElement('div');
+                groupDiv.className = `p-2 rounded cursor-pointer ${index === appData.activeGroupIndex ? 'bg-[#212121] border border-[#303030]' : 'hover:bg-[#212121]'}`;
+                groupDiv.innerHTML = `<div onclick="setActiveGroup(${index})" class="font-bold text-sm mb-1 flex justify-between text-white"><span>${group.name}</span> <span class="text-gray-500 text-xs">${group.videos.length}</span></div>`;
+                if (index === appData.activeGroupIndex) {
+                    const videoList = document.createElement('div'); videoList.className = "pl-2 space-y-1";
+                    group.videos.forEach(video => {
+                        const vidItem = document.createElement('div');
+                        vidItem.className = `video-item text-xs p-1 rounded cursor-pointer truncate ${appData.activeVideoId === video.id ? 'text-red-500 font-bold' : 'text-gray-300'}`;
+                        vidItem.innerText = video.title;
+                        vidItem.onclick = () => loadVideo(video.id, video.title);
+                        videoList.appendChild(vidItem);
+                    });
+                    groupDiv.appendChild(videoList);
+                }
+                list.appendChild(groupDiv);
+            });
+        }
+
+        function setActiveGroup(index) { appData.activeGroupIndex = index; renderGroups(); }
+
+        function loadVideo(videoId, title) {
+            appData.activeVideoId = videoId;
+            document.getElementById('currentVideoTitle').innerText = title;
+            document.getElementById('placeholder').style.display = 'none';
+            player.loadVideoById(videoId);
+            renderGroups();
+        }
+
+        function extractVideoID(url) {
+            const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/);
+            return (match && match[2].length === 11) ? match[2] : null;
+        }
+
+        function toggleBulkModal() { document.getElementById('bulkModal').classList.toggle('hidden'); }
+
+        function processBulkImport() {
+            const text = document.getElementById('bulkInput').value;
+            const targetGroupIndex = document.getElementById('bulkGroupSelect').value;
+            const urls = text.split('\n');
+            let count = 0;
+            urls.forEach(url => {
+                const id = extractVideoID(url.trim());
+                if (id && !appData.groups[targetGroupIndex].videos.find(v => v.id === id)) {
+                    appData.groups[targetGroupIndex].videos.push({ id: id, title: `Video (${id})` });
+                    count++;
+                }
+            });
+            saveData(); toggleBulkModal(); document.getElementById('bulkInput').value = ""; alert(`${count} videó hozzáadva!`);
+        }
+    </script>
+</body>
+</html>
