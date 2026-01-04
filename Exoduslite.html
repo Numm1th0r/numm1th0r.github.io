@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Exodus Napi</title>
     
+    <link rel="icon" type="image/png" href="https://exodus90.com/wp-content/uploads/2023/12/favicon.png">
+    <link rel="shortcut icon" type="image/png" href="https://exodus90.com/wp-content/uploads/2023/12/favicon.png">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap" rel="stylesheet">
@@ -62,16 +65,14 @@
             display: flex; flex-direction: column; flex-shrink: 0; height: 100%;
         }
         
-        /* Új rész: A rögzített Guide gomb konténere */
         .sidebar-header {
             padding: 15px 20px;
             background: var(--bg-sidebar);
             border-bottom: 1px solid var(--border);
-            flex-shrink: 0; /* Ez nem zsugorodik, mindig látszik */
+            flex-shrink: 0;
             z-index: 10;
         }
 
-        /* A Gomb stílusa */
         .guide-btn {
             display: block;
             background-color: var(--primary);
@@ -96,7 +97,6 @@
             background: var(--bg-sidebar);
         }
 
-        /* Ez a lista görgethető */
         #nav-scroll-area {
             overflow-y: auto;
             flex-grow: 1;
@@ -161,6 +161,10 @@
         .overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.5); z-index: 15; display: none;
+        }
+
+        @media (min-width: 769px) {
+            .overlay { display: none !important; }
         }
 
         /* --- MOBIL --- */
@@ -258,9 +262,14 @@
                 let menuTitle = item.Cim || "Napi elmélkedés";
                 
                 btn.innerHTML = `<span class="nav-date">${item.Datum}</span>${menuTitle}`;
+                
                 btn.onclick = () => {
                     renderContent(index);
-                    toggleMenu();
+                    
+                    if (window.innerWidth <= 768) {
+                        toggleMenu();
+                    }
+                    
                     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
                 };
