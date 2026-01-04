@@ -202,7 +202,7 @@
                 <a href="https://exodus90.notion.site/Exodus90-tmutat-17166f3e288e80cc8bdec9990bac67b7" 
                    target="_blank" 
                    class="guide-btn">
-                   Exodus90 Útmutató
+                   📘 Exodus90 Útmutató
                 </a>
             </div>
             
@@ -223,7 +223,7 @@
     <script>
         // ==========================================
         // IDE ILLESZD BE A GOOGLE SHEET LINKET!
-        const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_Eg_syCcJp0d6iTfJOsFtddqbLScPpgM48u75bmM8B3CeFABgps_-fd5I1ABYij12AZpo29WtMgNP/pub?gid=0&single=true&output=csv"; 
+        const GOOGLE_SHEET_URL = "IDE_MASOLD_BE_A_LINKET"; 
         // ==========================================
 
         let allWisdoms = [];
@@ -239,12 +239,35 @@
                 header: true,
                 skipEmptyLines: true,
                 complete: function(results) {
-                    allWisdoms = results.data.filter(r => r.Datum && r.Szoveg).reverse();
+                    
+                    // --- IDŐKAPU LOGIKA ---
+                    
+                    // 1. Megnézzük, mi a mai dátum (az időt éjfélre állítjuk, hogy a mai nap beleessen)
+                    const today = new Date();
+                    today.setHours(23, 59, 59, 999); 
+
+                    // 2. Szűrjük az adatokat
+                    allWisdoms = results.data.filter(r => {
+                        // Alap ellenőrzés, hogy van-e adat
+                        if (!r.Datum || !r.Szoveg) return false;
+
+                        // A dátum szöveg átalakítása dátummá (pl: 2024.01.05 -> 2024-01-05)
+                        // A pontokat kötőjelre cseréljük, mert a böngészők azt jobban szeretik
+                        const cleanDateStr = r.Datum.trim().replace(/\./g, '-');
+                        const postDate = new Date(cleanDateStr);
+
+                        // 3. Összehasonlítás: Csak akkor jelenítjük meg, ha a poszt dátuma <= ma
+                        return postDate <= today;
+                    }).reverse(); // Fordított sorrend (legújabb elöl)
+
+                    // --- MEGJELENÍTÉS ---
+                    
                     if (allWisdoms.length > 0) {
                         renderSidebar();
                         renderContent(0);
                     } else {
-                        document.getElementById('main-content').innerHTML = "Nincs adat.";
+                        document.getElementById('main-content').innerHTML = 
+                            '<div style="text-align:center; padding: 20px;">Még nincs elérhető tartalom mára.<br>Nézz vissza később!</div>';
                     }
                 },
                 error: function(err) { showError("Hiba történt a betöltéskor."); }
