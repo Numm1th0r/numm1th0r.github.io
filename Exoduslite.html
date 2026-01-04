@@ -3,198 +3,183 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exodus Napi</title>
+    <title>Exodus - Napi Útravaló</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap" rel="stylesheet">
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     
     <style>
+        /* --- MODERN LIGHT UI (CSS) --- */
         :root {
-            --primary: #ff6b00;
-            --bg-sidebar: #f8f9fa;
-            --bg-main: #ffffff;
-            --text-dark: #1a202c;
-            --text-body: #2d3748;
-            --border: #e2e8f0;
-            --sidebar-width: 300px;
+            /* Színpaletta - Letisztult & Világos */
+            --bg-body: #f7f9fc;       /* Nagyon halvány kékesszürke háttér */
+            --bg-card: #ffffff;       /* Tiszta fehér kártyák */
+            --text-primary: #1a202c;  /* Sötétszürke a fekete helyett (szemkímélőbb) */
+            --text-body: #4a5568;     /* Olvasáshoz kellemes szürke */
+            --accent: #ff8c00;        /* Élénk, modern narancs */
+            --border: #e2e8f0;        /* Finom elválasztók */
+            
+            /* Távolságok */
+            --spacing-sm: 10px;
+            --spacing-md: 20px;
+            --spacing-lg: 30px;
         }
-
-        * { box-sizing: border-box; }
 
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-main);
-            color: var(--text-dark);
+            font-family: 'Inter', sans-serif; /* UI betűtípus */
+            background-color: var(--bg-body);
+            color: var(--text-primary);
             margin: 0;
             padding: 0;
-            height: 100vh;
-            overflow: hidden;
             display: flex;
             flex-direction: column;
-        }
-
-        /* --- HEADER --- */
-        header.mobile-header {
-            display: none;
-            padding: 10px 15px; /* Kisebb padding mobilon */
-            background: #fff;
-            border-bottom: 1px solid var(--border);
             align-items: center;
+            min-height: 100vh;
+            /* Finom felső csík narancsból */
+            border-top: 6px solid var(--accent);
+        }
+
+        /* --- MOBIL BARÁT HEADER --- */
+        header {
+            width: 100%;
+            background-color: var(--bg-card);
+            padding: var(--spacing-md) 0;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        h1.app-title {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            text-transform: uppercase;
+            color: var(--text-primary);
+        }
+        
+        h1.app-title span { color: var(--accent); }
+
+        /* --- TARTALOM KONTÉNER --- */
+        .container {
+            max-width: 600px; /* Ideális olvasási szélesség */
+            width: 100%;
+            padding: var(--spacing-md);
+            box-sizing: border-box;
+            padding-bottom: 80px;
+        }
+
+        /* --- MODERN KÁRTYA DESIGN --- */
+        .card {
+            background-color: var(--bg-card);
+            border-radius: 16px; /* Nagyobb lekerekítés = modernebb hatás */
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.04); /* Nagyon finom lebegő árnyék */
+            border: 1px solid var(--border);
+            transition: transform 0.2s ease;
+        }
+
+        /* Dátum badge */
+        .meta-header {
+            display: flex;
             justify-content: space-between;
-            z-index: 20;
-            flex-shrink: 0;
-        }
-
-        .hamburger div { width: 25px; height: 3px; background-color: #333; margin: 4px 0; transition: 0.3s; }
-        .brand { font-weight: 900; font-size: 1.1rem; text-transform: uppercase; }
-        .brand span { color: var(--primary); }
-
-        /* --- LAYOUT --- */
-        .app-layout { display: flex; height: 100%; width: 100%; position: relative; flex-grow: 1; overflow: hidden; }
-
-        /* --- SIDEBAR --- */
-        aside.sidebar {
-            width: var(--sidebar-width);
-            background-color: var(--bg-sidebar);
-            border-right: 1px solid var(--border);
-            overflow-y: auto;
-            display: flex; flex-direction: column; flex-shrink: 0; height: 100%;
-        }
-        
-        .sidebar-title {
-            padding: 15px 20px; font-size: 1.1rem; font-weight: 800;
+            align-items: center;
+            margin-bottom: 16px;
             border-bottom: 1px solid var(--border);
-            background: var(--bg-sidebar); position: sticky; top: 0; z-index: 5;
+            padding-bottom: 12px;
         }
 
-        #nav-list { width: 100%; }
-
-        .nav-btn {
-            background: none; border: none; text-align: left;
-            padding: 12px 20px; /* Kompaktabb gombok */
-            cursor: pointer;
-            font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #555;
-            border-left: 4px solid transparent; border-bottom: 1px solid #f0f0f0;
-            transition: all 0.2s; width: 100%; display: block;
+        .date {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        .nav-btn:hover { background-color: #eef1f5; color: #000; }
-        .nav-btn.active {
-            background-color: #fff; color: var(--primary);
-            border-left-color: var(--primary); font-weight: 700;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-bottom-color: transparent;
+        /* Főcím */
+        h2.main-title {
+            margin: 0 0 10px 0;
+            font-family: 'Inter', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1.2;
+            letter-spacing: -0.5px;
         }
 
-        .nav-date { 
-            font-size: 0.7rem; text-transform: uppercase; display: block; 
-            margin-bottom: 4px; color: #999; font-weight: 600;
-        }
-        .nav-btn.active .nav-date { color: var(--primary); opacity: 0.8; }
-
-        /* --- TARTALOM --- */
-        main.content {
-            flex-grow: 1; overflow-y: auto; 
-            padding: 20px 30px; /* Kevesebb padding a széleken */
-            background-color: var(--bg-main); position: relative;
-        }
-
-        .content-wrapper { max-width: 800px; margin: 0 auto; padding-bottom: 60px; }
-
-        .article-date {
-            font-weight: 700; color: var(--primary); text-transform: uppercase;
-            letter-spacing: 1px; margin-bottom: 5px; display: block; font-size: 0.9rem;
-        }
-
-        h1.article-title {
-            font-family: 'Inter', sans-serif; font-size: 2.2rem; font-weight: 900;
-            margin: 0 0 15px 0; /* ITT: 30px helyett csak 15px alul */
-            line-height: 1.1; letter-spacing: -1px;
-        }
-
-        /* Törzsszöveg */
-        .article-body {
-            font-family: 'Merriweather', serif; font-size: 1.1rem;
-            line-height: 1.6; /* Kicsit szűkebb sorköz */
+        /* --- OLVASÁSI ÉLMÉNY (TYPOGRAPHY) --- */
+        .content-body {
+            font-family: 'Merriweather', serif; /* Serif betű a hosszú szövegekhez - mint a Medium vagy könyvek */
+            font-size: 1rem;
+            line-height: 1.8; /* Nagyobb sorköz a könnyebb olvasáshoz */
             color: var(--text-body);
-            white-space: pre-wrap; 
         }
 
-        /* --- FORMÁZÁSOK ÉS TÁVOLSÁGOK JAVÍTÁSA --- */
+        /* Ez a rész kezeli a "Bold címeket" a szövegen belül */
+        .content-body h3.inner-heading {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-top: 24px;
+            margin-bottom: 8px;
+            padding-left: 12px;
+            border-left: 3px solid var(--accent); /* Narancs díszcsík a cím mellett */
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-body);
+            font-weight: 500;
+        }
         
-        /* Alcímek (pl. Elmélkedés) */
-        .article-body h3 {
-            font-family: 'Inter', sans-serif; font-size: 1.3rem; font-weight: 700;
-            margin-top: 25px; /* ITT: 40px helyett 25px felül */
-            margin-bottom: 8px; /* ITT: 15px helyett 8px alul */
-            color: #111; display: block;
+        /* Hibaüzenet */
+        .error {
+            background: #fff5f5;
+            color: #c53030;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #feb2b2;
         }
 
-        .article-body strong { color: #000; font-weight: 700; }
-        .article-body em { font-style: italic; color: #444; }
-
-        .overlay {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5); z-index: 15; display: none;
+        /* Mobil optimalizálás */
+        @media (max-width: 480px) {
+            .container { padding: 15px; }
+            .card { padding: 20px; border-radius: 12px; }
+            h2.main-title { font-size: 1.4rem; }
+            .content-body { font-size: 0.95rem; }
         }
-
-        /* --- MOBIL --- */
-        @media (max-width: 768px) {
-            header.mobile-header { display: flex; }
-            .app-layout { flex-direction: column; }
-            aside.sidebar {
-                position: fixed; top: 0; left: 0; bottom: 0; z-index: 30;
-                transform: translateX(-100%); width: 85%; max-width: 320px;
-                box-shadow: 5px 0 15px rgba(0,0,0,0.1);
-            }
-            aside.sidebar.open { transform: translateX(0); }
-            .sidebar-title { display: none; }
-            
-            /* Mobilon még szűkebb margók */
-            main.content { padding: 15px 20px; }
-            h1.article-title { font-size: 1.8rem; margin-bottom: 10px; }
-            .article-body { font-size: 1.05rem; }
-            .article-body h3 { margin-top: 20px; margin-bottom: 5px; }
-        }
-        .loading, .error { text-align: center; padding: 50px; color: #888; }
     </style>
 </head>
 <body>
 
-    <header class="mobile-header">
-        <div class="brand">Exodus<span>90</span></div>
-        <button class="hamburger" onclick="toggleMenu()" style="background:none;border:none;cursor:pointer;">
-            <div></div><div></div><div></div>
-        </button>
+    <header>
+        <h1 class="app-title">Exodus<span>90</span></h1>
     </header>
 
-    <div class="app-layout">
-        <div class="overlay" id="overlay" onclick="toggleMenu()"></div>
-
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-title">Napok</div>
-            <div id="nav-list"></div>
-        </aside>
-
-        <main class="content">
-            <div class="content-wrapper" id="main-content">
-                <div class="loading">Betöltés...</div>
-            </div>
-        </main>
+    <div class="container" id="content">
+        <div class="loading">Betöltés...</div>
     </div>
 
     <script>
         // ==========================================
-        // IDE ILLESZD BE A GOOGLE SHEET LINKET!
+        // IDE ILLESZD BE A LINKET!
         const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_Eg_syCcJp0d6iTfJOsFtddqbLScPpgM48u75bmM8B3CeFABgps_-fd5I1ABYij12AZpo29WtMgNP/pub?gid=0&single=true&output=csv"; 
         // ==========================================
 
-        let allWisdoms = [];
-
         document.addEventListener('DOMContentLoaded', () => {
             if (GOOGLE_SHEET_URL === "IDE_MASOLD_BE_A_LINKET" || !GOOGLE_SHEET_URL) {
-                showError("Hiányzik a Google Sheet link!");
+                showError("Hiányzik a Google Sheet link a kódból!");
                 return;
             }
 
@@ -203,82 +188,65 @@
                 header: true,
                 skipEmptyLines: true,
                 complete: function(results) {
-                    allWisdoms = results.data.filter(r => r.Datum && r.Szoveg).reverse();
-                    if (allWisdoms.length > 0) {
-                        renderSidebar();
-                        renderContent(0);
-                    } else {
-                        document.getElementById('main-content').innerHTML = "Nincs adat.";
-                    }
+                    displayWisdoms(results.data);
                 },
-                error: function(err) { showError("Hiba történt a betöltéskor."); }
+                error: function(err) {
+                    console.error(err);
+                    showError("Nem sikerült betölteni az adatokat.");
+                }
             });
         });
 
-        function renderSidebar() {
-            const list = document.getElementById('nav-list');
-            list.innerHTML = '';
-            allWisdoms.forEach((item, index) => {
-                const btn = document.createElement('button');
-                btn.className = 'nav-btn';
-                if (index === 0) btn.classList.add('active');
-                
-                let menuTitle = item.Cim || "Napi elmélkedés";
-                
-                btn.innerHTML = `<span class="nav-date">${item.Datum}</span>${menuTitle}`;
-                btn.onclick = () => {
-                    renderContent(index);
-                    toggleMenu();
-                    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                };
-                list.appendChild(btn);
+        function displayWisdoms(data) {
+            const container = document.getElementById('content');
+            container.innerHTML = ''; 
+
+            const validData = data.filter(r => r.Datum && r.Szoveg).reverse();
+
+            if (validData.length === 0) {
+                container.innerHTML = '<div class="loading">Nincs megjeleníthető tartalom.</div>';
+                return;
+            }
+
+            validData.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'card';
+
+                // Itt történik a varázslat: Formázás
+                const formattedBody = formatText(item.Szoveg);
+
+                card.innerHTML = `
+                    <div class="meta-header">
+                        <span class="date">${item.Datum}</span>
+                    </div>
+                    ${item.Cim ? `<h2 class="main-title">${item.Cim}</h2>` : ''}
+                    <div class="content-body">${formattedBody}</div>
+                `;
+                container.appendChild(card);
             });
         }
 
-        function renderContent(index) {
-            const item = allWisdoms[index];
-            const container = document.getElementById('main-content');
-            
-            const formattedHTML = simpleFormat(item.Szoveg);
-
-            container.style.opacity = 0;
-            setTimeout(() => {
-                container.innerHTML = `
-                    <span class="article-date">${item.Datum}</span>
-                    ${item.Cim ? `<h1 class="article-title">${item.Cim}</h1>` : ''}
-                    <div class="article-body">${formattedHTML}</div>
-                `;
-                container.style.opacity = 1;
-            }, 150);
-            document.querySelector('main.content').scrollTop = 0;
-        }
-
-        // --- EGYSZERŰSÍTETT FORMÁZÓ ---
-        function simpleFormat(text) {
+        // Segédfüggvény: Szöveg formázása
+        // A **szöveg** alakból címet csinál, a sortörésekből pedig bekezdést
+        function formatText(text) {
             if (!text) return "";
-            let html = text;
-            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-            // Formázás: ### Cím (kisebb margóval a CSS-ben)
-            html = html.replace(/### (.*?)(?:\n|$)/g, '<h3>$1</h3>');
-            return html;
+            
+            // 1. lépés: HTML biztonság (hogy ne lehessen kódot beszúrni)
+            let safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+            // 2. lépés: A **szöveg** átalakítása Címmé (<h3>)
+            // Ez felel meg a kérésednek: "Boldként szereplő szövegek címként funkcionáljanak"
+            safeText = safeText.replace(/\*\*(.*?)\*\*/g, '<h3 class="inner-heading">$1</h3>');
+
+            // 3. lépés: Sortörések kezelése
+            safeText = safeText.replace(/\n/g, '<br>');
+
+            return safeText;
         }
 
-        function toggleMenu() {
-            const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('overlay');
-            if (sidebar.classList.contains('open')) {
-                sidebar.classList.remove('open');
-                overlay.style.display = 'none';
-            } else {
-                sidebar.classList.add('open');
-                overlay.style.display = 'block';
-            }
+        function showError(msg) {
+            document.getElementById('content').innerHTML = `<div class="error">${msg}</div>`;
         }
-
-        function showError(msg) { document.getElementById('main-content').innerHTML = `<div class="error">${msg}</div>`; }
-        document.getElementById('main-content').style.transition = 'opacity 0.2s ease';
     </script>
 </body>
 </html>
