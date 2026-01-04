@@ -202,7 +202,7 @@
                 <a href="https://exodus90.notion.site/Exodus90-tmutat-17166f3e288e80cc8bdec9990bac67b7" 
                    target="_blank" 
                    class="guide-btn">
-                   📘 Exodus90 Útmutató
+                   Exodus90 Útmutató
                 </a>
             </div>
             
@@ -240,25 +240,33 @@
                 skipEmptyLines: true,
                 complete: function(results) {
                     
-                    // --- IDŐKAPU LOGIKA ---
+                    // --- IDŐKAPU JAVÍTOTT LOGIKA ---
                     
-                    // 1. Megnézzük, mi a mai dátum (az időt éjfélre állítjuk, hogy a mai nap beleessen)
-                    const today = new Date();
-                    today.setHours(23, 59, 59, 999); 
+                    // 1. A mai dátum lekérése
+                    const now = new Date();
+                    // Nullázzuk az időt, hogy csak a nap számítson (éjfél)
+                    now.setHours(0, 0, 0, 0); 
 
-                    // 2. Szűrjük az adatokat
+                    // 2. Szűrés
                     allWisdoms = results.data.filter(r => {
-                        // Alap ellenőrzés, hogy van-e adat
                         if (!r.Datum || !r.Szoveg) return false;
 
-                        // A dátum szöveg átalakítása dátummá (pl: 2024.01.05 -> 2024-01-05)
-                        // A pontokat kötőjelre cseréljük, mert a böngészők azt jobban szeretik
-                        const cleanDateStr = r.Datum.trim().replace(/\./g, '-');
-                        const postDate = new Date(cleanDateStr);
+                        // Dátum tisztítása (szóközök, pontok kezelése)
+                        // pl: "2024. 01. 05." -> "2024-01-05"
+                        let dateStr = r.Datum.trim().replace(/\./g, '-').replace(/\s/g, '');
+                        // Ha a végén maradt kötőjel, levágjuk
+                        if (dateStr.endsWith('-')) dateStr = dateStr.slice(0, -1);
 
-                        // 3. Összehasonlítás: Csak akkor jelenítjük meg, ha a poszt dátuma <= ma
-                        return postDate <= today;
-                    }).reverse(); // Fordított sorrend (legújabb elöl)
+                        const postDate = new Date(dateStr);
+                        // A poszt dátumát is éjfélre állítjuk a biztonság kedvéért
+                        postDate.setHours(0, 0, 0, 0);
+
+                        // 3. A feltétel: 
+                        // A poszt dátuma kisebb vagy egyenlő, mint a mai nap.
+                        // (Múlt + Ma = IGEN, Jövő = NEM)
+                        return postDate.getTime() <= now.getTime();
+
+                    }).reverse(); // Legújabb (mai) legyen legfelül
 
                     // --- MEGJELENÍTÉS ---
                     
@@ -267,7 +275,7 @@
                         renderContent(0);
                     } else {
                         document.getElementById('main-content').innerHTML = 
-                            '<div style="text-align:center; padding: 20px;">Még nincs elérhető tartalom mára.<br>Nézz vissza később!</div>';
+                            '<div style="text-align:center; padding: 20px;">Még nincs elérhető tartalom mára, vagy hiba van a dátum formátumában.<br>Kérlek ellenőrizd, hogy a Táblázatban a dátum ÉÉÉÉ.HH.NN formátumú-e.</div>';
                     }
                 },
                 error: function(err) { showError("Hiba történt a betöltéskor."); }
