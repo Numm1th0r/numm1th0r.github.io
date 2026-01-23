@@ -144,4 +144,136 @@
         </div>
 
     <script>
-        // --- 1. MINTA ADATOK (Mintha adatbázisból vagy Google API-ból jönne
+        // --- 1. MINTA ADATOK (Mintha adatbázisból vagy Google API-ból jönne) ---
+        const myEvents = [
+            { date: '2023-10-27', title: 'Fogorvos', source: 'local', time: '10:00' },
+            { date: '2023-10-27', title: 'Bevásárlás', source: 'local', time: '18:00' },
+            { date: '2023-10-28', title: 'Google Meet: Projekt', source: 'google', time: '09:00' },
+            { date: '2023-10-28', title: 'Ebéd Anyával', source: 'local', time: '12:00' },
+            { date: '2023-10-28', title: 'Edzés', source: 'local', time: '19:00' },
+            { date: '2023-11-01', title: 'Mindenszentek', source: 'google', time: 'Egész nap' },
+        ];
+
+        // --- 2. SEGÉDFÜGGVÉNYEK ---
+
+        // Dátum formázó
+        const daysHu = ['Vas', 'Hét', 'Kedd', 'Szer', 'Csüt', 'Pén', 'Szom'];
+        const monthsHu = ['Január', 'Február', 'Március', 'Április', 'Május', 'Június', 'Július', 'Augusztus', 'Szeptember', 'Október', 'November', 'December'];
+
+        function getEventsForDate(dateString) {
+            return myEvents.filter(e => e.date === dateString);
+        }
+
+        // Zsúfoltság számítása (0-3 szint)
+        function calculateBusyness(eventCount) {
+            if (eventCount === 0) return 0;
+            if (eventCount <= 1) return 1; // Zöld
+            if (eventCount <= 3) return 2; // Sárga
+            return 3; // Piros
+        }
+
+        // --- 3. NAPTÁR GENERÁLÁS ---
+        function renderCalendar() {
+            const container = document.getElementById('calendarContainer');
+            const today = new Date(); // Mai nap
+            
+            // Generáljunk 3 hónapot előre
+            for (let i = 0; i < 3; i++) {
+                let currentMonth = new Date(today.getFullYear(), today.getMonth() + i, 1);
+                let monthName = monthsHu[currentMonth.getMonth()];
+                let year = currentMonth.getFullYear();
+
+                // Hónap fejléc
+                const monthHeader = document.createElement('div');
+                monthHeader.className = 'month-header';
+                monthHeader.innerText = `${year} ${monthName}`;
+                container.appendChild(monthHeader);
+
+                // Napok generálása a hónapban
+                const daysInMonth = new Date(year, currentMonth.getMonth() + 1, 0).getDate();
+
+                for (let d = 1; d <= daysInMonth; d++) {
+                    // Ha a nap már elmúlt ebben a hónapban (csak az első ciklusban releváns), ugorjuk át?
+                    // Most hagyjuk benne a múltat is a demó kedvéért, vagy szűrhetnénk.
+                    
+                    let dateObj = new Date(year, currentMonth.getMonth(), d);
+                    let dateString = dateObj.toISOString().split('T')[0]; // YYYY-MM-DD
+                    let dayName = daysHu[dateObj.getDay()];
+
+                    // Események lekérése
+                    let dayEvents = getEventsForDate(dateString);
+                    let busynessLevel = calculateBusyness(dayEvents.length);
+
+                    // HTML felépítése
+                    const dayCard = document.createElement('div');
+                    dayCard.className = `day-card level-${busynessLevel}`;
+                    
+                    let eventsHtml = '';
+                    if (dayEvents.length > 0) {
+                        dayEvents.forEach(ev => {
+                            let sourceLabel = ev.source === 'google' ? '<span class="source-google">GOOGLE</span>' : '';
+                            let cssClass = ev.source === 'google' ? 'source-google-border' : 'source-local';
+                            eventsHtml += `
+                                <div class="event-item ${cssClass}">
+                                    ${sourceLabel}
+                                    <strong>${ev.time}</strong> - ${ev.title}
+                                </div>`;
+                        });
+                    } else {
+                        eventsHtml = '<div class="empty-day">Nincs esemény</div>';
+                    }
+
+                    dayCard.innerHTML = `
+                        <div class="date-box">
+                            <span class="day-name">${dayName}</span>
+                            <span class="day-number">${d}</span>
+                        </div>
+                        <div class="events-list">
+                            ${eventsHtml}
+                        </div>
+                    `;
+
+                    container.appendChild(dayCard);
+                }
+            }
+        }
+
+        // --- 4. INTERAKCIÓK ---
+
+        function addNewEvent() {
+            // Itt egy modal ablak nyílna meg, most csak szimuláljuk
+            let title = prompt("Esemény neve:");
+            if(title) {
+                // Egyszerűség kedvéért a mai naphoz adjuk
+                let todayStr = new Date().toISOString().split('T')[0];
+                myEvents.push({
+                    date: todayStr,
+                    title: title,
+                    source: 'local',
+                    time: 'Egész nap'
+                });
+                // Újra rendereljük a naptárat
+                document.getElementById('calendarContainer').innerHTML = '';
+                renderCalendar();
+                alert("Esemény hozzáadva a mai naphoz!");
+            }
+        }
+
+        function connectGoogle() {
+            // Ez csak a UI demó része. A valódi Google API-hoz szerver oldali kód kellene vagy komplexebb JS.
+            alert("A Google Naptár integrációhoz API kulcs és OAuth hitelesítés szükséges. (Lásd a leírást)");
+            
+            // Szimulált importálás
+            myEvents.push({ date: '2023-10-30', title: 'Importált Google Meeting', source: 'google', time: '14:00' });
+            document.getElementById('calendarContainer').innerHTML = '';
+            renderCalendar();
+        }
+
+        // Indítás
+        // A demó kedvéért állítsuk be a dátumot októberre, hogy látszódjanak a mintaadatok
+        // A valóságban a "today" változót használnánk.
+        renderCalendar(); 
+
+    </script>
+</body>
+</html>
