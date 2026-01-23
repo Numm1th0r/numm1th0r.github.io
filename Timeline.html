@@ -3,277 +3,359 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modern Flow Calendar</title>
+    <title>Kompakt Naptár Néző</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ical.js/1.5.0/ical.min.js"></script>
     <style>
         :root {
-            --bg-color: #f4f6f8;
+            --bg-color: #f0f2f5;
             --card-bg: #ffffff;
-            --text-primary: #333;
+            --text-primary: #222;
             --text-secondary: #666;
-            --accent: #4a90e2;
-            --busy-low: #2ecc71;    /* Laza nap */
-            --busy-med: #f1c40f;    /* Közepes */
-            --busy-high: #e74c3c;   /* Zsúfolt */
+            --border-color: #e1e4e8;
+            --busy-low: #4caf50;
+            --busy-med: #ff9800;
+            --busy-high: #f44336;
         }
 
         body {
-            font-family: 'Segoe UI', Roboto, Helvetica, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg-color);
             margin: 0;
-            padding: 20px;
+            padding: 10px;
             color: var(--text-primary);
+            font-size: 14px;
         }
 
-        /* Vezérlőpult */
+        /* FELSŐ SÁV */
         .controls {
-            position: sticky;
-            top: 0;
-            background: rgba(244, 246, 248, 0.95);
-            padding: 15px 0;
-            z-index: 100;
-            backdrop-filter: blur(5px);
-            border-bottom: 1px solid #ddd;
+            background: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             margin-bottom: 20px;
             display: flex;
-            justify-content: space-between;
+            gap: 10px;
             align-items: center;
+            flex-wrap: wrap;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border: 1px solid var(--border-color);
+        }
+
+        input[type="text"] {
+            flex-grow: 1;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.9rem;
         }
 
         button {
-            background-color: var(--accent);
+            background-color: #007bff;
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 20px;
+            padding: 8px 16px;
+            border-radius: 4px;
             cursor: pointer;
             font-weight: 600;
-            transition: transform 0.1s;
+            white-space: nowrap;
         }
+        
+        button:hover { background-color: #0056b3; }
+        button.secondary { background-color: #6c757d; }
 
-        button:active { transform: scale(0.95); }
-        button.google-btn { background-color: #db4437; }
-
-        /* Naptár konténer */
+        /* NAPTÁR FOLYAM */
         .calendar-stream {
-            max-width: 600px;
+            max-width: 1000px;
             margin: 0 auto;
         }
 
-        /* Hónap elválasztó */
+        /* Hónap elválasztó - Kicsi és diszkrét */
         .month-header {
-            font-size: 1.5rem;
-            font-weight: 800;
-            margin: 40px 0 15px 0;
-            color: var(--text-primary);
-            position: sticky;
-            top: 70px; /* A controls alatt */
-            z-index: 90;
+            font-size: 1rem;
+            font-weight: bold;
+            color: #555;
+            margin: 15px 0 5px 0;
+            padding-left: 5px;
+            border-bottom: 1px solid #ddd;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
-        /* Nap kártya */
-        .day-card {
+        /* NAP KÁRTYA - KOMPAKT */
+        .day-row {
             background: var(--card-bg);
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border-bottom: 1px solid var(--border-color);
+            padding: 6px 10px;
             display: flex;
+            align-items: center; /* Függőleges középre igazítás */
             gap: 15px;
-            border-left: 6px solid transparent; /* Zsúfoltság jelző helye */
-            transition: transform 0.2s;
+            transition: background 0.2s;
         }
 
-        .day-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        .day-row:hover { background-color: #fafafa; }
+        
+        /* Hétvége jelölés enyhe szürkével */
+        .is-weekend { background-color: #fcfcfc; }
+
+        /* Zsúfoltság csík (bal szél, vékony) */
+        .indicator {
+            width: 4px;
+            height: 25px;
+            border-radius: 2px;
+            background-color: #ddd;
+            flex-shrink: 0;
         }
+        .level-1 { background-color: var(--busy-low); }
+        .level-2 { background-color: var(--busy-med); }
+        .level-3 { background-color: var(--busy-high); }
 
-        /* Zsúfoltság szintek */
-        .level-0 { border-left-color: #ddd; } /* Üres */
-        .level-1 { border-left-color: var(--busy-low); }
-        .level-2 { border-left-color: var(--busy-med); }
-        .level-3 { border-left-color: var(--busy-high); }
-
-        /* Dátum blokk (bal oldal) */
+        /* Dátum blokk */
         .date-box {
             display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-width: 50px;
-            text-align: center;
+            align-items: baseline;
+            gap: 5px;
+            min-width: 80px;
+            flex-shrink: 0;
         }
 
-        .day-name { font-size: 0.8rem; text-transform: uppercase; color: var(--text-secondary); font-weight: bold; }
-        .day-number { font-size: 1.8rem; font-weight: 900; line-height: 1; }
+        .day-number { font-size: 1.1rem; font-weight: 700; color: #333; }
+        .day-name { font-size: 0.75rem; text-transform: uppercase; color: #888; font-weight: 600; width: 30px;}
 
-        /* Események listája (jobb oldal) */
-        .events-list {
+        /* ESEMÉNYEK - VÍZSZINTES SOR */
+        .events-container {
             flex-grow: 1;
             display: flex;
-            flex-direction: column;
-            gap: 8px;
+            flex-wrap: wrap; /* Tördelés, ha nem fér ki */
+            gap: 6px;
+            align-items: center;
         }
 
-        .event-item {
-            background-color: #f9f9f9;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            border-left: 3px solid #ccc;
+        .event-chip {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid rgba(0,0,0,0.05);
+            white-space: nowrap;
+            overflow: hidden;
+            max-width: 200px;
+            text-overflow: ellipsis;
         }
 
-        .source-google { border-left-color: #db4437; color: #db4437; font-size: 0.7rem; font-weight: bold; margin-bottom: 2px; display: block;}
-        .source-local { border-left-color: var(--accent); }
+        .event-time {
+            font-weight: 700;
+            margin-right: 5px;
+            font-size: 0.75rem;
+            opacity: 0.8;
+        }
+        
+        /* Különböző stílus egész napos eseményeknek */
+        .all-day {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
 
-        .empty-day { color: #ccc; font-style: italic; font-size: 0.9rem; margin-top: 10px; }
+        .empty-text { font-size: 0.8rem; color: #ccc; font-style: italic; }
 
     </style>
 </head>
 <body>
 
     <div class="controls">
-        <h2 style="margin:0;">📅 Flow Calendar</h2>
-        <div style="display: flex; gap: 10px;">
-            <button onclick="addNewEvent()">+ Saját Esemény</button>
-            <button class="google-btn" onclick="connectGoogle()">G-Sync</button>
+        <div style="flex-grow:1;">
+            <input type="text" id="icalUrl" placeholder="Illeszd be ide az iCal linket (pl. https://calendar.google.com/.../basic.ics)">
+            <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">
+                Tipp: Google Naptár -> Beállítások -> Naptár kiválasztása -> <b>"Titkos cím iCal-formátumban"</b>
+            </div>
         </div>
+        <button onclick="loadCalendarFromUrl()">🔄 Betöltés</button>
+        <button class="secondary" onclick="clearData()">Törlés</button>
     </div>
 
     <div class="calendar-stream" id="calendarContainer">
+        <div style="text-align:center; color:#999; margin-top:50px;">
+            Még nincs naptár betöltve. Illeszd be a linket fentre!
         </div>
+    </div>
 
     <script>
-        // --- 1. MINTA ADATOK (Mintha adatbázisból vagy Google API-ból jönne) ---
-        const myEvents = [
-            { date: '2023-10-27', title: 'Fogorvos', source: 'local', time: '10:00' },
-            { date: '2023-10-27', title: 'Bevásárlás', source: 'local', time: '18:00' },
-            { date: '2023-10-28', title: 'Google Meet: Projekt', source: 'google', time: '09:00' },
-            { date: '2023-10-28', title: 'Ebéd Anyával', source: 'local', time: '12:00' },
-            { date: '2023-10-28', title: 'Edzés', source: 'local', time: '19:00' },
-            { date: '2023-11-01', title: 'Mindenszentek', source: 'google', time: 'Egész nap' },
-        ];
-
-        // --- 2. SEGÉDFÜGGVÉNYEK ---
-
-        // Dátum formázó
-        const daysHu = ['Vas', 'Hét', 'Kedd', 'Szer', 'Csüt', 'Pén', 'Szom'];
+        let allEvents = [];
+        const daysHu = ['V', 'H', 'K', 'Sze', 'Cs', 'P', 'Szo'];
         const monthsHu = ['Január', 'Február', 'Március', 'Április', 'Május', 'Június', 'Július', 'Augusztus', 'Szeptember', 'Október', 'November', 'December'];
 
-        function getEventsForDate(dateString) {
-            return myEvents.filter(e => e.date === dateString);
+        // Betöltés indításkor, ha van mentett URL
+        window.onload = function() {
+            const savedUrl = localStorage.getItem('calendarUrl');
+            if(savedUrl) {
+                document.getElementById('icalUrl').value = savedUrl;
+                loadCalendarFromUrl();
+            }
         }
 
-        // Zsúfoltság számítása (0-3 szint)
-        function calculateBusyness(eventCount) {
-            if (eventCount === 0) return 0;
-            if (eventCount <= 1) return 1; // Zöld
-            if (eventCount <= 3) return 2; // Sárga
-            return 3; // Piros
-        }
+        async function loadCalendarFromUrl() {
+            const urlInput = document.getElementById('icalUrl').value.trim();
+            if (!urlInput) {
+                alert("Kérlek adj meg egy URL-t!");
+                return;
+            }
 
-        // --- 3. NAPTÁR GENERÁLÁS ---
-        function renderCalendar() {
             const container = document.getElementById('calendarContainer');
-            const today = new Date(); // Mai nap
-            
-            // Generáljunk 3 hónapot előre
-            for (let i = 0; i < 3; i++) {
-                let currentMonth = new Date(today.getFullYear(), today.getMonth() + i, 1);
-                let monthName = monthsHu[currentMonth.getMonth()];
-                let year = currentMonth.getFullYear();
+            container.innerHTML = '<div style="text-align:center; padding:20px;">Adatok letöltése és feldolgozása...</div>';
 
-                // Hónap fejléc
-                const monthHeader = document.createElement('div');
-                monthHeader.className = 'month-header';
-                monthHeader.innerText = `${year} ${monthName}`;
-                container.appendChild(monthHeader);
+            try {
+                // TRÜKK: Proxy használata a CORS hiba elkerülésére
+                // A böngésző nem engedi közvetlenül hívni a Google-t, ezért az allorigins.win közvetítőt használjuk.
+                const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(urlInput);
+                
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error("Hálózati hiba");
+                
+                const icsData = await response.text();
+                
+                // Feldolgozás
+                parseICS(icsData);
+                
+                // Mentjük a címet, hogy legközelebb is meglegyen
+                localStorage.setItem('calendarUrl', urlInput);
 
-                // Napok generálása a hónapban
-                const daysInMonth = new Date(year, currentMonth.getMonth() + 1, 0).getDate();
+            } catch (error) {
+                console.error(error);
+                container.innerHTML = `<div style="color:red; text-align:center;">Hiba történt: ${error.message}.<br>Ellenőrizd a linket!</div>`;
+            }
+        }
 
-                for (let d = 1; d <= daysInMonth; d++) {
-                    // Ha a nap már elmúlt ebben a hónapban (csak az első ciklusban releváns), ugorjuk át?
-                    // Most hagyjuk benne a múltat is a demó kedvéért, vagy szűrhetnénk.
+        function parseICS(icsData) {
+            try {
+                const jcalData = ICAL.parse(icsData);
+                const vcalendar = new ICAL.Component(jcalData);
+                const vevents = vcalendar.getAllSubcomponents('vevent');
+
+                allEvents = []; // Töröljük az előzőeket
+
+                vevents.forEach(vevent => {
+                    const event = new ICAL.Event(vevent);
+                    const startDate = event.startDate.toJSDate();
                     
-                    let dateObj = new Date(year, currentMonth.getMonth(), d);
-                    let dateString = dateObj.toISOString().split('T')[0]; // YYYY-MM-DD
-                    let dayName = daysHu[dateObj.getDay()];
-
-                    // Események lekérése
-                    let dayEvents = getEventsForDate(dateString);
-                    let busynessLevel = calculateBusyness(dayEvents.length);
-
-                    // HTML felépítése
-                    const dayCard = document.createElement('div');
-                    dayCard.className = `day-card level-${busynessLevel}`;
+                    // Ismétlődő események kezelése bonyolult lenne, itt most az alap eseményeket kezeljük
+                    // Ez a kód az egyszeri eseményeket jeleníti meg jól.
                     
-                    let eventsHtml = '';
-                    if (dayEvents.length > 0) {
-                        dayEvents.forEach(ev => {
-                            let sourceLabel = ev.source === 'google' ? '<span class="source-google">GOOGLE</span>' : '';
-                            let cssClass = ev.source === 'google' ? 'source-google-border' : 'source-local';
-                            eventsHtml += `
-                                <div class="event-item ${cssClass}">
-                                    ${sourceLabel}
-                                    <strong>${ev.time}</strong> - ${ev.title}
-                                </div>`;
-                        });
+                    let timeStr = '';
+                    let isAllDay = false;
+
+                    if (event.startDate.isDate) {
+                        isAllDay = true;
                     } else {
-                        eventsHtml = '<div class="empty-day">Nincs esemény</div>';
+                        timeStr = startDate.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
                     }
 
-                    dayCard.innerHTML = `
-                        <div class="date-box">
-                            <span class="day-name">${dayName}</span>
-                            <span class="day-number">${d}</span>
-                        </div>
-                        <div class="events-list">
-                            ${eventsHtml}
-                        </div>
-                    `;
-
-                    container.appendChild(dayCard);
-                }
-            }
-        }
-
-        // --- 4. INTERAKCIÓK ---
-
-        function addNewEvent() {
-            // Itt egy modal ablak nyílna meg, most csak szimuláljuk
-            let title = prompt("Esemény neve:");
-            if(title) {
-                // Egyszerűség kedvéért a mai naphoz adjuk
-                let todayStr = new Date().toISOString().split('T')[0];
-                myEvents.push({
-                    date: todayStr,
-                    title: title,
-                    source: 'local',
-                    time: 'Egész nap'
+                    allEvents.push({
+                        date: startDate.toISOString().split('T')[0], // YYYY-MM-DD
+                        title: event.summary,
+                        time: timeStr,
+                        isAllDay: isAllDay,
+                        rawDate: startDate
+                    });
                 });
-                // Újra rendereljük a naptárat
-                document.getElementById('calendarContainer').innerHTML = '';
+
                 renderCalendar();
-                alert("Esemény hozzáadva a mai naphoz!");
+
+            } catch (e) {
+                console.error(e);
+                alert("Nem sikerült feldolgozni a naptár adatokat.");
             }
         }
 
-        function connectGoogle() {
-            // Ez csak a UI demó része. A valódi Google API-hoz szerver oldali kód kellene vagy komplexebb JS.
-            alert("A Google Naptár integrációhoz API kulcs és OAuth hitelesítés szükséges. (Lásd a leírást)");
-            
-            // Szimulált importálás
-            myEvents.push({ date: '2023-10-30', title: 'Importált Google Meeting', source: 'google', time: '14:00' });
-            document.getElementById('calendarContainer').innerHTML = '';
-            renderCalendar();
+        function renderCalendar() {
+            const container = document.getElementById('calendarContainer');
+            container.innerHTML = '';
+
+            // Rendezés időrendbe
+            allEvents.sort((a, b) => a.rawDate - b.rawDate);
+
+            // Dátumtartomány: Ma -> Ma + 90 nap
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const endDate = new Date();
+            endDate.setDate(today.getDate() + 90);
+
+            let lastRenderedMonth = -1;
+
+            // Ciklus a következő 90 napon át
+            for (let d = new Date(today); d <= endDate; d.setDate(d.getDate() + 1)) {
+                
+                const currentStr = d.toISOString().split('T')[0];
+                const dayEvents = allEvents.filter(e => e.date === currentStr);
+                
+                // Hónap kiírása, ha változik
+                if (d.getMonth() !== lastRenderedMonth) {
+                    const monthDiv = document.createElement('div');
+                    monthDiv.className = 'month-header';
+                    monthDiv.innerText = `${d.getFullYear()} ${monthsHu[d.getMonth()]}`;
+                    container.appendChild(monthDiv);
+                    lastRenderedMonth = d.getMonth();
+                }
+
+                // Zsúfoltság szint
+                const count = dayEvents.length;
+                let busyClass = 'level-0';
+                if (count > 0) busyClass = 'level-1';
+                if (count > 2) busyClass = 'level-2';
+                if (count > 5) busyClass = 'level-3';
+
+                const isWeekend = (d.getDay() === 0 || d.getDay() === 6) ? 'is-weekend' : '';
+
+                // HTML Építés
+                const row = document.createElement('div');
+                row.className = `day-row ${isWeekend}`;
+
+                // Események HTML-je
+                let eventsHtml = '';
+                if (dayEvents.length > 0) {
+                    // Idő szerinti rendezés napon belül
+                    dayEvents.sort((a,b) => {
+                        if(a.isAllDay) return -1;
+                        if(b.isAllDay) return 1;
+                        return a.time.localeCompare(b.time);
+                    });
+
+                    dayEvents.forEach(ev => {
+                        const timeSpan = ev.isAllDay ? '' : `<span class="event-time">${ev.time}</span>`;
+                        const chipClass = ev.isAllDay ? 'all-day' : '';
+                        eventsHtml += `
+                            <div class="event-chip ${chipClass}" title="${ev.title}">
+                                ${timeSpan}${ev.title}
+                            </div>
+                        `;
+                    });
+                } else {
+                    // Ha nincs semmi, üres marad vagy kis pötty
+                    // eventsHtml = '<span class="empty-text">-</span>'; 
+                }
+
+                row.innerHTML = `
+                    <div class="indicator ${busyClass}"></div>
+                    <div class="date-box">
+                        <span class="day-number">${d.getDate()}</span>
+                        <span class="day-name">${daysHu[d.getDay()]}</span>
+                    </div>
+                    <div class="events-container">
+                        ${eventsHtml}
+                    </div>
+                `;
+
+                container.appendChild(row);
+            }
         }
 
-        // Indítás
-        // A demó kedvéért állítsuk be a dátumot októberre, hogy látszódjanak a mintaadatok
-        // A valóságban a "today" változót használnánk.
-        renderCalendar(); 
-
+        function clearData() {
+            localStorage.removeItem('calendarUrl');
+            location.reload();
+        }
     </script>
 </body>
 </html>
