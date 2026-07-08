@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Moll könyv</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --panel:#171a21;
+    --panel-2:#1f232c;
+    --ink:#e8eaf0;
+    --muted:#9aa3b2;
+    --chord:#6ea8ff;
+    --accent:#3b82f6;
+    --line:#2a2f3a;
+    --song-font:17px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    overflow:hidden;
+  }
+  body{ display:flex; flex-direction:column; height:100dvh; }
+
+  /* ---------- toolbar ---------- */
+  .toolbar{
+    flex:0 0 auto;
+    background:var(--panel); border-bottom:1px solid var(--line);
+    display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+    padding:8px 10px;
+  }
+  .group{ display:flex; align-items:center; gap:6px; }
+  .grow{ flex:1 1 auto; min-width:120px; }
+
+  select, button, input[type="text"]{
+    font-size:15px; color:var(--ink);
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
+    padding:8px 10px;
+  }
+  select{ width:100%; -webkit-appearance:none; appearance:none; }
+  button{ cursor:pointer; min-width:38px; height:38px; line-height:1; }
+  button:hover{ background:#272c37; }
+  button:active{ transform:translateY(1px); }
+  button.icon{ font-size:17px; padding:8px; }
+  button.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .sep{ width:1px; height:26px; background:var(--line); margin:0 2px; }
+  .label{ font-size:12px; color:var(--muted); white-space:nowrap; }
+  .key-val{ font-weight:800; color:var(--ink); min-width:34px; text-align:center; display:inline-block; }
+
+  /* speed slider */
+  input[type="range"]{ width:110px; accent-color:var(--accent); }
+  .speed-wrap{ display:flex; align-items:center; gap:6px; }
+
+  input[type="file"]{ display:none; }
+
+  /* ---------- viewer ---------- */
+  .viewer{
+    flex:1 1 auto; overflow-y:auto; overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    padding:14px 16px 40vh;
+  }
+  .song-head{
+    display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+    border-bottom:2px solid var(--line); padding-bottom:8px; margin-bottom:10px;
+  }
+  .song-title{ font-size:22px; font-weight:800; margin:0; }
+  .song-capo{ font-size:13px; color:var(--muted); font-style:italic; }
+
+  .song-inner{
+    font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size:var(--song-font); line-height:1.35; width:max-content; min-width:100%;
+  }
+  .stanza{ margin-bottom:14px; }
+  .section-header{
+    font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); font-size:.8em; margin:10px 0 4px;
+  }
+  .line{ white-space:pre; }
+  .line.chord{ color:var(--chord); font-weight:700; }
+  .line.lyric{ color:var(--ink); }
+
+  .status{
+    color:var(--muted); font-size:15px; text-align:center;
+    max-width:520px; margin:60px auto; line-height:1.6;
+  }
+
+  /* ---------- print ---------- */
+  #printArea{ display:none; }
+  @media print{
+    :root{ --song-font:12px; }
+    html,body{ overflow:visible; height:auto; background:#fff; color:#000; }
+    .toolbar,.viewer{ display:none !important; }
+    #printArea{ display:block; }
+    .print-page{
+      width:210mm; min-height:297mm; padding:14mm; break-after:page; page-break-after:always;
+    }
+    .print-page:last-child{ break-after:auto; page-break-after:auto; }
+    .print-page .line.chord{ color:#1d4ed8; }
+  }
+  @page{ size:A4; margin:0; }
+
+  /* narrow screens */
+  @media (max-width:560px){
+    .song-title{ font-size:19px; }
+    .toolbar{ padding:6px 8px; gap:6px; }
+    input[type="range"]{ width:90px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="group grow">
+    <button class="icon" id="prevBtn" title="Előző dal">‹</button>
+    <select id="songSelect" aria-label="Dal választása"></select>
+    <button class="icon" id="nextBtn" title="Következő dal">›</button>
+  </div>
+
+  <div class="sep"></div>
+
+  <div class="group">
+    <span class="label">Hang</span>
+    <button id="keyDown" title="Fél hanggal lejjebb">−</button>
+    <span class="key-val" id="keyVal">–</span>
+    <button id="keyUp" title="Fél hanggal feljebb">+</button>
+    <button id="keyReset" title="Eredeti hangnem">0</button>
+  </div>
+
+  <div class="sep"></div>
+
+  <div class="group">
+    <span class="label">Méret</span>
+    <button id="fontDown" title="Kisebb betű">A−</button>
+    <button id="fontUp" title="Nagyobb betű">A+</button>
+  </div>
+
+  <div class="sep"></div>
+
+  <div class="group speed-wrap">
+    <button class="icon" id="playBtn" title="Autoscroll indítása/leállítása">▶</button>
+    <input type="range" id="speed" min="1" max="100" value="25" title="Görgetési sebesség">
+  </div>
+
+  <div class="sep"></div>
+
+  <div class="group">
+    <label class="icon" style="display:inline-flex;align-items:center;justify-content:center;" for="fileInput" title="MD fájl betöltése kézzel">📂</label>
+    <input type="file" id="fileInput" accept=".md,.txt">
+    <button class="icon" id="reloadBtn" title="Újratöltés a fájlból">⟳</button>
+    <button class="icon" id="printBtn" title="Nyomtatás / PDF">🖨</button>
+  </div>
+</div>
+
+<div class="viewer" id="viewer">
+  <div class="status" id="status">Betöltés…</div>
+</div>
+
+<div id="printArea"></div>
+
+<script>
+(function(){
+  const MD_FILE = 'Moll könyv.md';
+
+  // ---------- transpose helpers ----------
+  const SHARP_NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const ENHARMONIC = {Db:'C#',Eb:'D#',Gb:'F#',Ab:'G#',Bb:'A#',Cb:'B','E#':'F','B#':'C',Fb:'E'};
+  const CHORD_TOKEN_RE = /^[A-G](#|b)?(maj|min|m)?(6|7|9|11|13)?(sus2|sus4|sus)?(add\d{1,2})?(dim|aug)?(\/[A-G](#|b)?)?$/;
+
+  function shiftNote(note, semitones){
+    const norm = ENHARMONIC[note] || note;
+    const idx = SHARP_NOTES.indexOf(norm);
+    if(idx === -1) return note;
+    return SHARP_NOTES[((idx + semitones) % 12 + 12) % 12];
+  }
+  function transposeToken(token, semitones){
+    const m = /^([A-G])(#|b)?/.exec(token);
+    if(!m) return token;
+    let rest = token.slice(m[0].length);
+    let bassSuffix = '';
+    const slashIdx = rest.indexOf('/');
+    if(slashIdx !== -1){
+      const bassPart = rest.slice(slashIdx + 1);
+      rest = rest.slice(0, slashIdx);
+      const bm = /^([A-G])(#|b)?/.exec(bassPart);
+      bassSuffix = bm
+        ? '/' + shiftNote(bm[1] + (bm[2]||''), semitones) + bassPart.slice(bm[0].length)
+        : '/' + bassPart;
+    }
+    return shiftNote(m[1] + (m[2]||''), semitones) + rest + bassSuffix;
+  }
+  function transposeLine(text, semitones){
+    if(semitones === 0) return text;
+    return text.split(/(\s+)/).map(chunk =>
+      /^\s*$/.test(chunk) ? chunk : (isChordToken(chunk) ? transposeToken(chunk, semitones) : chunk)
+    ).join('');
+  }
+  function isChordToken(t){ return CHORD_TOKEN_RE.test(t); }
+  function isChordLine(text){
+    const trimmed = text.trim();
+    if(trimmed === '') return false;
+    // allow trailing repeat markers like x2 / (fade out) without disqualifying
+    const tokens = trimmed.split(/\s+/).filter(t => !/^x\d+$/i.test(t) && !/^\(.*\)$/.test(t));
+    return tokens.length > 0 && tokens.every(isChordToken);
+  }
+
+  // ---------- parsing ----------
+  function parseSongbook(text){
+    const lines = text.replace(/\r\n?/g, '\n').split('\n');
+    const songs = [];
+    let i = 0;
+    const isTitle = l => /^#{1,6}\s+/.test(l);
+
+    while(i < lines.length){
+      if(isTitle(lines[i])){
+        const title = lines[i].replace(/^#{1,6}\s+/, '').trim();
+        i++;
+        while(i < lines.length && lines[i].trim() === '') i++;
+
+        const body = [];
+        // optional ```fence``` still supported, but plain text is the norm now
+        if(i < lines.length && lines[i].trim().startsWith('```')){
+          i++;
+          while(i < lines.length && lines[i].trim() !== '```'){ body.push(lines[i]); i++; }
+          if(i < lines.length) i++;
+        } else {
+          while(i < lines.length && !isTitle(lines[i])){ body.push(lines[i]); i++; }
+        }
+        songs.push(buildSong(title, body));
+      } else {
+        i++;
+      }
+    }
+    return songs;
+  }
+
+  function buildSong(title, bodyLines){
+    let idx = 0;
+    while(idx < bodyLines.length && bodyLines[idx].trim() === '') idx++;
+    let capo = null;
+    if(idx < bodyLines.length && /^capo\b/i.test(bodyLines[idx].trim())){
+      capo = bodyLines[idx].trim();
+      idx++;
+    }
+
+    const rawBlocks = [];
+    let current = [];
+    for(const l of bodyLines.slice(idx)){
+      if(l.trim() === ''){
+        if(current.length){ rawBlocks.push(current); current = []; }
+      } else {
+        current.push(l);
+      }
+    }
+    if(current.length) rawBlocks.push(current);
+
+    const blocks = rawBlocks.map(rb => {
+      let header = null, body = rb;
+      const hm = /^\s*(\[[^\]]+\])\s*$/.exec(rb[0]);
+      if(hm){ header = hm[1]; body = rb.slice(1); }
+      return { header, lines: body.map(t => ({ type: isChordLine(t) ? 'chord' : 'lyric', text: t })) };
+    });
+
+    let baseRoot = null;
+    outer:
+    for(const b of blocks){
+      for(const l of b.lines){
+        if(l.type === 'chord'){
+          const first = l.text.trim().split(/\s+/)[0];
+          const m = /^([A-G])(#|b)?/.exec(first);
+          if(m){ baseRoot = ENHARMONIC[m[1]+(m[2]||'')] || (m[1]+(m[2]||'')); break outer; }
+        }
+      }
+    }
+    return { title, capo, blocks, baseRoot, offset: 0 };
+  }
+
+  // ---------- rendering ----------
+  function buildSongInner(song){
+    const inner = document.createElement('div');
+    inner.className = 'song-inner';
+    for(const block of song.blocks){
+      const stanza = document.createElement('div');
+      stanza.className = 'stanza';
+      if(block.header){
+        const h = document.createElement('div');
+        h.className = 'section-header';
+        h.textContent = block.header;
+        stanza.appendChild(h);
+      }
+      for(const l of block.lines){
+        const div = document.createElement('div');
+        div.className = 'line ' + l.type;
+        div.textContent = l.type === 'chord' ? transposeLine(l.text, song.offset) : l.text;
+        stanza.appendChild(div);
+      }
+      inner.appendChild(stanza);
+    }
+    return inner;
+  }
+
+  // ---------- app state ----------
+  const viewer   = document.getElementById('viewer');
+  const statusEl = document.getElementById('status');
+  const select   = document.getElementById('songSelect');
+  const keyVal   = document.getElementById('keyVal');
+
+  let songs = [];
+  let current = 0;
+
+  function renderCurrent(){
+    stopScroll();
+    const song = songs[current];
+    viewer.innerHTML = '';
+    if(!song){ viewer.appendChild(statusEl); return; }
+
+    const head = document.createElement('div');
+    head.className = 'song-head';
+    const t = document.createElement('h1');
+    t.className = 'song-title';
+    t.textContent = song.title;
+    head.appendChild(t);
+    if(song.capo){
+      const c = document.createElement('div');
+      c.className = 'song-capo';
+      c.textContent = song.capo;
+      head.appendChild(c);
+    }
+    viewer.appendChild(head);
+    viewer.appendChild(buildSongInner(song));
+
+    keyVal.textContent = song.baseRoot
+      ? shiftNote(song.baseRoot, song.offset) + (song.offset ? ` (${song.offset>0?'+':''}${song.offset})` : '')
+      : '–';
+
+    viewer.scrollTop = 0;
+    scrollAccum = 0;
+    fitFont();
+  }
+
+  function goto(idx){
+    if(!songs.length) return;
+    current = (idx % songs.length + songs.length) % songs.length;
+    select.value = String(current);
+    renderCurrent();
+  }
+
+  // ---------- font auto-fit to width ----------
+  function fitFont(){
+    // handled purely by CSS var; auto-fit only shrinks if the widest line
+    // overflows the viewport width (keeps monospace chord alignment intact).
+    const inner = viewer.querySelector('.song-inner');
+    if(!inner) return;
+    inner.style.fontSize = '';               // use --song-font
+    const avail = viewer.clientWidth - 32;   // minus padding
+    const needed = inner.scrollWidth;
+    if(needed > avail && needed > 0){
+      const base = parseFloat(getComputedStyle(inner).fontSize);
+      inner.style.fontSize = Math.max(9, base * avail / needed) + 'px';
+    }
+  }
+
+  // ---------- autoscroll ----------
+  const speedInput = document.getElementById('speed');
+  const playBtn = document.getElementById('playBtn');
+  let scrolling = false, rafId = null, lastT = 0, scrollAccum = 0;
+
+  function pxPerSec(){ return Number(speedInput.value) * 2.2; } // 1..100 -> ~2..220 px/s
+
+  function tick(t){
+    if(!scrolling) return;
+    if(lastT){
+      scrollAccum += pxPerSec() * (t - lastT) / 1000;
+      viewer.scrollTop = scrollAccum;
+      if(viewer.scrollTop + viewer.clientHeight >= viewer.scrollHeight - 1){
+        stopScroll();
+        return;
+      }
+    }
+    lastT = t;
+    rafId = requestAnimationFrame(tick);
+  }
+  function startScroll(){
+    if(scrolling || !songs.length) return;
+    scrolling = true; lastT = 0;
+    scrollAccum = viewer.scrollTop;
+    playBtn.textContent = '⏸';
+    rafId = requestAnimationFrame(tick);
+  }
+  function stopScroll(){
+    scrolling = false;
+    if(rafId) cancelAnimationFrame(rafId);
+    playBtn.textContent = '▶';
+  }
+  function toggleScroll(){ scrolling ? stopScroll() : startScroll(); }
+
+  // keep accumulator in sync when the user scrolls manually
+  viewer.addEventListener('scroll', () => { if(!scrolling) scrollAccum = viewer.scrollTop; });
+
+  // ---------- loading ----------
+  function loadText(text){
+    songs = parseSongbook(text);
+    select.innerHTML = '';
+    songs.forEach((s, i) => {
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = s.title;
+      select.appendChild(o);
+    });
+    if(!songs.length){
+      statusEl.textContent = 'Nem található dal a fájlban. Formátum: „# Cím”, alatta a dalszöveg akkordokkal.';
+      viewer.innerHTML = ''; viewer.appendChild(statusEl);
+      return;
+    }
+    goto(0);
+  }
+
+  function fetchMd(){
+    statusEl.textContent = 'Betöltés…';
+    fetch(encodeURI(MD_FILE) + '?t=' + Date.now())
+      .then(r => { if(!r.ok) throw new Error(r.status); return r.text(); })
+      .then(loadText)
+      .catch(() => {
+        statusEl.textContent = 'A(z) "' + MD_FILE + '" nem tölthető be automatikusan. '
+          + 'Ha helyben (file://) nyitod meg, használd a 📂 gombot a fájl kézi betöltéséhez. '
+          + 'GitHub Pages-en automatikusan működik.';
+        viewer.innerHTML = ''; viewer.appendChild(statusEl);
+      });
+  }
+
+  // ---------- print ----------
+  function buildPrint(){
+    const area = document.getElementById('printArea');
+    area.innerHTML = '';
+    songs.forEach(song => {
+      const pg = document.createElement('div');
+      pg.className = 'print-page';
+      const h = document.createElement('h1');
+      h.className = 'song-title';
+      h.textContent = song.title + (song.capo ? '  —  ' + song.capo : '');
+      pg.appendChild(h);
+      pg.appendChild(buildSongInner(song));
+      area.appendChild(pg);
+    });
+  }
+
+  // ---------- wiring ----------
+  document.getElementById('prevBtn').onclick = () => goto(current - 1);
+  document.getElementById('nextBtn').onclick = () => goto(current + 1);
+  select.onchange = () => goto(Number(select.value));
+
+  document.getElementById('keyDown').onclick  = () => { const s=songs[current]; if(s){ s.offset--; renderCurrent(); } };
+  document.getElementById('keyUp').onclick    = () => { const s=songs[current]; if(s){ s.offset++; renderCurrent(); } };
+  document.getElementById('keyReset').onclick = () => { const s=songs[current]; if(s){ s.offset=0; renderCurrent(); } };
+
+  function changeFont(delta){
+    const root = document.documentElement;
+    const cur = parseFloat(getComputedStyle(root).getPropertyValue('--song-font')) || 17;
+    root.style.setProperty('--song-font', Math.min(34, Math.max(10, cur + delta)) + 'px');
+    fitFont();
+  }
+  document.getElementById('fontUp').onclick   = () => changeFont(2);
+  document.getElementById('fontDown').onclick = () => changeFont(-2);
+
+  playBtn.onclick = toggleScroll;
+
+  document.getElementById('reloadBtn').onclick = fetchMd;
+  document.getElementById('printBtn').onclick = () => { buildPrint(); window.print(); };
+  document.getElementById('fileInput').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if(!f) return;
+    const r = new FileReader();
+    r.onload = () => loadText(r.result);
+    r.readAsText(f, 'utf-8');
+  });
+
+  // keyboard
+  document.addEventListener('keydown', e => {
+    if(e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+    if(e.key === 'ArrowRight'){ goto(current + 1); }
+    else if(e.key === 'ArrowLeft'){ goto(current - 1); }
+    else if(e.key === ' '){ e.preventDefault(); toggleScroll(); }
+  });
+
+  // swipe left/right to change song
+  let touchX = null, touchY = null;
+  viewer.addEventListener('touchstart', e => {
+    if(e.touches.length === 1){ touchX = e.touches[0].clientX; touchY = e.touches[0].clientY; }
+  }, {passive:true});
+  viewer.addEventListener('touchend', e => {
+    if(touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    const dy = e.changedTouches[0].clientY - touchY;
+    if(Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.8){
+      goto(current + (dx < 0 ? 1 : -1));
+    }
+    touchX = touchY = null;
+  }, {passive:true});
+
+  window.addEventListener('resize', fitFont);
+
+  fetchMd();
+})();
+</script>
+</body>
+</html>
