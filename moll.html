@@ -32,7 +32,6 @@
     border:1px solid var(--line); border-radius:8px; padding:8px 10px;
   }
   select{ -webkit-appearance:none; appearance:none; }
-  #songSelect{ width:100%; }
   button{ cursor:pointer; min-width:38px; height:38px; line-height:1; }
   button:hover{ filter:brightness(1.08); }
   button:active{ transform:translateY(1px); }
@@ -76,6 +75,15 @@
   .song-item .num{ color:var(--muted); font-size:12px; margin-right:8px; }
   .song-item.active .num{ color:#dbe7ff; }
   .sidebar-empty{ color:var(--muted); font-size:14px; text-align:center; padding:24px 12px; }
+  .sidebar-foot{
+    border-top:1px solid var(--line); padding:10px; display:flex; flex-wrap:wrap; gap:6px;
+  }
+  .sidebar-foot button, .file-btn{
+    flex:1 1 auto; height:36px; min-width:0; display:inline-flex; align-items:center; justify-content:center;
+    gap:4px; font-size:13px; cursor:pointer;
+    background:var(--panel-2); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:0 8px;
+  }
+  .sidebar-foot button:hover, .file-btn:hover{ filter:brightness(1.08); }
 
   /* ---------- viewer ---------- */
   .viewer{ flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; }
@@ -153,14 +161,19 @@
     <button class="icon" id="closeSidebar" title="Bezárás">✕</button>
   </div>
   <div class="sidebar-list" id="songList"></div>
+  <div class="sidebar-foot">
+    <button id="reloadBtn" title="Újratöltés a fájlból">⟳ Frissítés</button>
+    <button id="themeBtn" title="Világos / sötét téma">☀ Téma</button>
+    <label class="file-btn" for="fileInput" title="MD fájl betöltése kézzel">📂 Fájl</label>
+    <input type="file" id="fileInput" accept=".md,.txt">
+    <button id="printBtn" title="Nyomtatás / PDF">🖨 Nyomtatás</button>
+  </div>
 </aside>
 
 <div class="toolbar">
   <div class="group grow">
     <button class="icon" id="menuBtn" title="Dallista">☰</button>
-    <button class="icon" id="prevBtn" title="Előző dal">‹</button>
     <button class="song-name" id="titleBtn" title="Dallista megnyitása">Dalkönyv</button>
-    <button class="icon" id="nextBtn" title="Következő dal">›</button>
   </div>
 
   <div class="sep"></div>
@@ -169,14 +182,6 @@
     <button id="keyDown" title="Fél hanggal lejjebb">−</button>
     <span class="key-val" id="keyVal">–</span>
     <button id="keyUp" title="Fél hanggal feljebb">+</button>
-    <button id="keyReset" title="Eredeti hangnem">0</button>
-  </div>
-
-  <div class="sep"></div>
-  <div class="group">
-    <span class="label">Méret</span>
-    <button id="fontDown" title="Kisebb betű">A−</button>
-    <button id="fontUp" title="Nagyobb betű">A+</button>
   </div>
 
   <div class="sep"></div>
@@ -189,15 +194,6 @@
       <option value="0.8">0.8</option>
       <option value="1">1.0</option>
     </select>
-  </div>
-
-  <div class="sep"></div>
-  <div class="group">
-    <button class="icon" id="themeBtn" title="Világos / sötét téma">☀</button>
-    <label class="icon" style="display:inline-flex;align-items:center;justify-content:center;" for="fileInput" title="MD fájl betöltése kézzel">📂</label>
-    <input type="file" id="fileInput" accept=".md,.txt">
-    <button class="icon" id="reloadBtn" title="Újratöltés a fájlból">⟳</button>
-    <button class="icon" id="printBtn" title="Nyomtatás / PDF">🖨</button>
   </div>
 </div>
 
@@ -292,25 +288,33 @@
     return { title, capo, blocks, baseRoot, offset: 0 };
   }
 
-  // ---------- line reflow (mobile) ----------
-  // Wrap a chord line + lyric line pair to maxCols columns, breaking at
-  // word boundaries so chords stay above the right words. Either side may
-  // be empty (chord-only or lyric-only line).
-  function wrapPair(C, L, maxCols){
+  // ---------- line reflow ----------
+  // Wrap a chord line + lyric line pair so each line holds at most `maxWords`
+  // words (and never more than `maxCols` columns wide). Both lines are cut at
+  // the same columns, so chords stay above the right words. Either side may be
+  // empty (chord-only or lyric-only line). Used on mobile AND desktop.
+  function wrap(C, L, maxWords, maxCols){
     const len = Math.max(C.length, L.length);
     C = C.padEnd(len, ' '); L = L.padEnd(len, ' ');
-    const out = []; let start = 0;
-    while(start < len){
-      if(len - start <= maxCols){ out.push([C.slice(start), L.slice(start)]); break; }
-      let brk = -1;
-      for(let i = start + 1; i <= start + maxCols && i < len; i++){
-        if(L[i] === ' ' && C[i] === ' ') brk = i;
-      }
-      if(brk === -1) brk = start + maxCols;               // no safe space: hard break
-      out.push([C.slice(start, brk).replace(/\s+$/,''), L.slice(start, brk).replace(/\s+$/,'')]);
-      while(brk < len && L[brk] === ' ' && C[brk] === ' ') brk++; // drop shared leading spaces
-      start = brk;
+    const primary = /\S/.test(L) ? L : C;   // count words from lyrics, else chords
+    const spans = [];                        // [start,end) of each word
+    let i = 0;
+    while(i < len){
+      if(primary[i] !== ' '){ let j = i; while(j < len && primary[j] !== ' ') j++; spans.push([i, j]); i = j; }
+      else i++;
     }
+    if(!spans.length) return [[C.replace(/\s+$/,''), L.replace(/\s+$/,'')]];
+
+    const cuts = [];                         // columns where a new segment starts
+    let segStart = spans[0][0], count = 0;
+    for(const [s, e] of spans){
+      if(count > 0 && (count + 1 > maxWords || e - segStart > maxCols)){
+        cuts.push(s); segStart = s; count = 1;
+      } else count++;
+    }
+    const out = []; let prev = 0;
+    for(const c of cuts){ out.push([C.slice(prev, c).replace(/\s+$/,''), L.slice(prev, c).replace(/\s+$/,'')]); prev = c; }
+    out.push([C.slice(prev).replace(/\s+$/,''), L.slice(prev).replace(/\s+$/,'')]);
     return out;
   }
 
@@ -321,7 +325,9 @@
     inner.appendChild(d);
   }
 
-  function buildFlowInner(song, maxCols){
+  const MAX_WORDS = 6;   // max words per line before wrapping
+
+  function buildInner(song, maxCols){
     const inner = document.createElement('div');
     inner.className = 'song-inner';
     for(const block of song.blocks){
@@ -338,44 +344,21 @@
         if(cur.type === 'chord'){
           const cText = transposeLine(cur.text, song.offset);
           if(i + 1 < ls.length && ls[i+1].type === 'lyric'){
-            wrapPair(cText, ls[i+1].text, maxCols).forEach(([c,l]) => {
+            wrap(cText, ls[i+1].text, MAX_WORDS, maxCols).forEach(([c,l]) => {
               addLine(stanza, 'chord', c);
               if(l.trim() !== '') addLine(stanza, 'lyric', l);
             });
             i += 2;
           } else {
-            wrapPair(cText, '', maxCols).forEach(([c]) => addLine(stanza, 'chord', c));
+            wrap(cText, '', MAX_WORDS, maxCols).forEach(([c]) => addLine(stanza, 'chord', c));
             i++;
           }
         } else {
-          wrapPair('', cur.text, maxCols).forEach(([,l]) => {
+          wrap('', cur.text, MAX_WORDS, maxCols).forEach(([,l]) => {
             if(l.trim() !== '') addLine(stanza, 'lyric', l);
           });
           i++;
         }
-      }
-      inner.appendChild(stanza);
-    }
-    return inner;
-  }
-
-  // original (unwrapped) inner for A4 page + print
-  function buildPageInner(song){
-    const inner = document.createElement('div');
-    inner.className = 'song-inner';
-    for(const block of song.blocks){
-      const stanza = document.createElement('div');
-      stanza.className = 'stanza';
-      if(block.header){
-        const h = document.createElement('div');
-        h.className = 'section-header'; h.textContent = block.header;
-        stanza.appendChild(h);
-      }
-      for(const l of block.lines){
-        const d = document.createElement('div');
-        d.className = 'line ' + l.type;
-        d.textContent = l.type === 'chord' ? transposeLine(l.text, song.offset) : l.text;
-        stanza.appendChild(d);
       }
       inner.appendChild(stanza);
     }
@@ -437,20 +420,19 @@
   function layoutFlow(song){
     viewer.appendChild(headEl(song, 'song-head'));
     const fs = songFontPx();
-    const avail = viewer.clientWidth - 24;
-    const maxCols = Math.max(10, Math.floor(avail / charWidthPx(fs)));
-    viewer.appendChild(buildFlowInner(song, maxCols));
+    const maxCols = Math.max(10, Math.floor((viewer.clientWidth - 24) / charWidthPx(fs)));
+    viewer.appendChild(buildInner(song, maxCols));
   }
 
   function layoutPage(song){
-    const wrap = document.createElement('div'); wrap.className = 'page-wrap';
+    const wrapEl = document.createElement('div'); wrapEl.className = 'page-wrap';
     const page = document.createElement('div'); page.className = 'page';
     page.appendChild(headEl(song, 'page-title-row'));
     const content = document.createElement('div'); content.className = 'song-content';
-    content.appendChild(buildPageInner(song));
+    content.appendChild(buildInner(song, Infinity));   // word-limited only; A4 fit handles width
     page.appendChild(content);
-    wrap.appendChild(page); viewer.appendChild(wrap);
-    requestAnimationFrame(() => { fitContent(page); fitPageToViewport(page, wrap); });
+    wrapEl.appendChild(page); viewer.appendChild(wrapEl);
+    requestAnimationFrame(() => { fitContent(page); fitPageToViewport(page, wrapEl); });
   }
 
   const COLUMN_GAP = 28;
@@ -591,7 +573,7 @@
       h.textContent = song.title + (song.capo ? '  —  ' + song.capo : '');
       pg.appendChild(h);
       const content = document.createElement('div'); content.className = 'song-content';
-      content.appendChild(buildPageInner(song));
+      content.appendChild(buildInner(song, Infinity));
       pg.appendChild(content);
       area.appendChild(pg);
       fitContent(pg);
@@ -613,25 +595,13 @@
   themeBtn.onclick = () => applyTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
 
   // ---------- wiring ----------
-  document.getElementById('prevBtn').onclick = () => goto(current - 1);
-  document.getElementById('nextBtn').onclick = () => goto(current + 1);
   document.getElementById('menuBtn').onclick = openSidebar;
   titleBtn.onclick = openSidebar;
   document.getElementById('closeSidebar').onclick = closeSidebar;
   overlay.onclick = closeSidebar;
   searchInput.addEventListener('input', filterList);
-  document.getElementById('keyDown').onclick  = () => { const s=songs[current]; if(s){ s.offset--; renderCurrent(); } };
-  document.getElementById('keyUp').onclick    = () => { const s=songs[current]; if(s){ s.offset++; renderCurrent(); } };
-  document.getElementById('keyReset').onclick = () => { const s=songs[current]; if(s){ s.offset=0; renderCurrent(); } };
-
-  function changeFont(delta){
-    const root = document.documentElement;
-    const cur = songFontPx();
-    root.style.setProperty('--song-font', Math.min(30, Math.max(10, cur + delta)) + 'px');
-    renderCurrent();
-  }
-  document.getElementById('fontUp').onclick   = () => changeFont(1);
-  document.getElementById('fontDown').onclick = () => changeFont(-1);
+  document.getElementById('keyDown').onclick = () => { const s=songs[current]; if(s){ s.offset--; renderCurrent(); } };
+  document.getElementById('keyUp').onclick   = () => { const s=songs[current]; if(s){ s.offset++; renderCurrent(); } };
 
   playBtn.onclick = toggleScroll;
   document.getElementById('reloadBtn').onclick = fetchMd;
