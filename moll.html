@@ -406,6 +406,10 @@
   }
 
   const COLUMN_GAP = 28;
+  // Fit a whole song onto one A4 page. Columns are laid out at their natural
+  // (unscaled) width so a line always fits its column, then the whole block is
+  // uniformly scaled down to fit the page — up to 3 columns, whichever gives
+  // the largest readable text.
   function fitContent(page){
     const content = page.querySelector('.song-content');
     const inner = page.querySelector('.song-inner');
@@ -413,19 +417,23 @@
     if(availW <= 0 || availH <= 0) return;
     inner.style.transform = 'none'; inner.style.columnCount = 1;
     inner.style.columnGap = '0'; inner.style.width = 'max-content';
-    const lineMaxW = Math.max(inner.scrollWidth, 1);
-    const natH = Math.max(inner.scrollHeight, 1);
-    let best = { scale: 0, cols: 1 };
+    const lineMaxW = Math.max(inner.scrollWidth, 1);   // widest single line
+    const natH = Math.max(inner.scrollHeight, 1);      // total height, 1 column
+    let tallest = 1;                                   // tallest unsplittable stanza
+    inner.querySelectorAll('.stanza').forEach(s => { tallest = Math.max(tallest, s.offsetHeight); });
+
+    let best = { k: 0, cols: 1, W: lineMaxW };
     for(const cols of [1,2,3]){
       const gap = cols > 1 ? COLUMN_GAP * (cols - 1) : 0;
-      const colW = (availW - gap) / cols;
-      const scale = Math.min(1, colW / lineMaxW, (availH * cols) / natH);
-      if(scale > best.scale) best = { scale, cols };
+      const Wun = lineMaxW * cols + gap;               // unscaled width needed
+      const Hun = Math.max(natH / cols, tallest);      // unscaled column height needed
+      const k = Math.min(1, availW / Wun, availH / Hun);
+      if(k > best.k + 1e-4) best = { k, cols, W: Wun };
     }
     inner.style.columnCount = best.cols;
     inner.style.columnGap = best.cols > 1 ? COLUMN_GAP + 'px' : '0';
-    inner.style.width = availW + 'px';
-    inner.style.transform = `scale(${best.scale})`;
+    inner.style.width = best.W + 'px';
+    inner.style.transform = `scale(${best.k})`;
   }
   function fitPageToViewport(page, wrap){
     const pw = page.offsetWidth, ph = page.offsetHeight;
